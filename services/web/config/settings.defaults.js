@@ -390,15 +390,41 @@ module.exports = {
     { code: 'xh', name: 'Xhosa' },
   ],
 
+  translatedLanguages: {
+    cn: '简体中文',
+    cs: 'Čeština',
+    da: 'Dansk',
+    de: 'Deutsch',
+    en: 'English',
+    es: 'Español',
+    fi: 'Suomi',
+    fr: 'Français',
+    it: 'Italiano',
+    ja: '日本語',
+    ko: '한국어',
+    nl: 'Nederlands',
+    no: 'Norsk',
+    pl: 'Polski',
+    pt: 'Português',
+    ro: 'Română',
+    ru: 'Русский',
+    sv: 'Svenska',
+    tr: 'Türkçe',
+    uk: 'Українська',
+    'zh-CN': '简体中文',
+  },
+
   // Password Settings
   // -----------
   // These restrict the passwords users can use when registering
   // opts are from http://antelle.github.io/passfield
-  // passwordStrengthOptions:
-  // 	pattern: "aA$3"
-  // 	length:
-  // 		min: 6
-  // 		max: 128
+  passwordStrengthOptions: {
+    length: {
+      min: 6,
+      // Bcrypt does not support longer passwords than that.
+      max: 72,
+    },
+  },
 
   // Email support
   // -------------
@@ -542,17 +568,13 @@ module.exports = {
   nav: {
     title: 'ShareLaTeX Community Edition',
 
-    left_footer: [
-      {
-        text:
-          "Powered by <a href='https://www.sharelatex.com'>ShareLaTeX</a> © 2016",
-      },
-    ],
+    hide_powered_by: process.env.NAV_HIDE_POWERED_BY === 'true',
+    left_footer: [],
 
     right_footer: [
       {
         text: "<i class='fa fa-github-square'></i> Fork on Github!",
-        url: 'https://github.com/sharelatex/sharelatex',
+        url: 'https://github.com/overleaf/overleaf',
       },
     ],
 
@@ -712,6 +734,7 @@ module.exports = {
     publishModal: [],
     tprLinkedFileInfo: [],
     tprLinkedFileRefreshError: [],
+    contactUsModal: [],
   },
 
   moduleImportSequence: ['launchpad', 'server-ce-scripts', 'user-activate'],

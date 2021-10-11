@@ -9,11 +9,13 @@ import PdfPreviewError from './pdf-preview-error'
 import PdfClearCacheButton from './pdf-clear-cache-button'
 import PdfDownloadFilesButton from './pdf-download-files-button'
 import PdfLogsEntries from './pdf-logs-entries'
+import withErrorBoundary from '../../../infrastructure/error-boundary'
+import ErrorBoundaryFallback from './error-boundary-fallback'
+import { LogsPaneInfoNotice } from '../../preview/components/preview-logs-pane'
 
 function PdfLogsViewer() {
   const {
-    autoCompileLintingError,
-    stopOnValidationError,
+    codeCheckFailed,
     error,
     logEntries,
     rawLog,
@@ -25,7 +27,8 @@ function PdfLogsViewer() {
   return (
     <div className="logs-pane">
       <div className="logs-pane-content">
-        {autoCompileLintingError && stopOnValidationError && (
+        <LogsPaneInfoNotice />
+        {codeCheckFailed && (
           <div className="log-entry">
             <div className="log-entry-header log-entry-header-error">
               <div className="log-entry-header-icon-container">
@@ -67,4 +70,6 @@ function PdfLogsViewer() {
   )
 }
 
-export default memo(PdfLogsViewer)
+export default withErrorBoundary(memo(PdfLogsViewer), () => (
+  <ErrorBoundaryFallback type="logs" />
+))
