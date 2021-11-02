@@ -1,21 +1,30 @@
 import { memo, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { useTranslation } from 'react-i18next'
-import PreviewLogsPaneEntry from '../../preview/components/preview-logs-pane-entry'
 import PreviewLogsPaneMaxEntries from '../../preview/components/preview-logs-pane-max-entries'
+import PdfLogEntry from './pdf-log-entry'
+import { useIdeContext } from '../../../shared/context/ide-context'
 
 const LOG_PREVIEW_LIMIT = 100
 
 function PdfLogsEntries({ entries }) {
   const { t } = useTranslation()
 
-  const syncToEntry = useCallback(entry => {
-    window.dispatchEvent(
-      new CustomEvent('synctex:sync-to-entry', {
-        detail: entry,
-      })
-    )
-  }, [])
+  const ide = useIdeContext()
+
+  const syncToEntry = useCallback(
+    entry => {
+      const entity = ide.fileTreeManager.findEntityByPath(entry.file)
+
+      if (entity && entity.type === 'doc') {
+        ide.editorManager.openDoc(entity, {
+          gotoLine: entry.line ?? undefined,
+          gotoColumn: entry.column ?? undefined,
+        })
+      }
+    },
+    [ide]
+  )
 
   const logEntries = entries.slice(0, LOG_PREVIEW_LIMIT)
 
@@ -23,13 +32,12 @@ function PdfLogsEntries({ entries }) {
     <>
       {entries.length > LOG_PREVIEW_LIMIT && (
         <PreviewLogsPaneMaxEntries
-          key={`${entries.length}-${LOG_PREVIEW_LIMIT}`}
           totalEntries={entries.length}
           entriesShown={LOG_PREVIEW_LIMIT}
         />
       )}
       {logEntries.map(logEntry => (
-        <PreviewLogsPaneEntry
+        <PdfLogEntry
           key={logEntry.key}
           headerTitle={logEntry.message}
           rawContent={logEntry.content}

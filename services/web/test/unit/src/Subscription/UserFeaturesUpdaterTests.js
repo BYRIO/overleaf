@@ -21,6 +21,7 @@ describe('UserFeaturesUpdater', function () {
       referencesSearch: true,
       zotero: true,
       mendeley: true,
+      symbolPalette: true,
     }
     this.User = {
       findByIdAndUpdate: sinon.stub().yields(null, { features: this.features }),
@@ -30,6 +31,7 @@ describe('UserFeaturesUpdater', function () {
         '../../models/User': {
           User: this.User,
         },
+        '@overleaf/settings': (this.Settings = {}),
       },
     })
   })
@@ -57,6 +59,31 @@ describe('UserFeaturesUpdater', function () {
           )
           expect(updateArgs[1].featuresUpdatedAt instanceof Date).to.be.true
           features.should.deep.equal(update)
+          expect(updateArgs[1].featuresEpoch).to.be.undefined
+          done()
+        }
+      )
+    })
+    it('should set the featuresEpoch when present', function (done) {
+      const userId = '5208dd34438842e2db000005'
+      const update = {
+        versioning: true,
+      }
+      this.Settings.featuresEpoch = 'epoch-1'
+      this.UserFeaturesUpdater.updateFeatures(
+        userId,
+        update,
+        (err, features) => {
+          const updateArgs = this.User.findByIdAndUpdate.lastCall.args
+          expect(updateArgs[0]).to.deep.equal(userId)
+          assert.equal(err, null)
+          expect(Object.keys(updateArgs[1]).length).to.equal(3)
+          expect(updateArgs[1]['features.versioning']).to.equal(
+            update.versioning
+          )
+          expect(updateArgs[1].featuresUpdatedAt instanceof Date).to.be.true
+          features.should.deep.equal(update)
+          expect(updateArgs[1].featuresEpoch).to.equal('epoch-1')
           done()
         }
       )

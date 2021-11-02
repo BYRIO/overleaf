@@ -1,5 +1,4 @@
 /* eslint-disable
-    handle-callback-err,
     no-control-regex,
     no-throw-literal,
     no-unused-vars,
@@ -26,12 +25,14 @@ module.exports = RequestParser = {
   parse(body, callback) {
     let resource
     if (callback == null) {
-      callback = function (error, data) {}
+      callback = function () {}
     }
     const response = {}
 
     if (body.compile == null) {
-      return callback('top level object should have a compile attribute')
+      return callback(
+        new Error('top level object should have a compile attribute')
+      )
     }
 
     const { compile } = body

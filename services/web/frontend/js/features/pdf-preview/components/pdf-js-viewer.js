@@ -1,37 +1,36 @@
 import PropTypes from 'prop-types'
 import { memo, useCallback, useEffect, useState } from 'react'
 import { debounce } from 'lodash'
-import { Alert } from 'react-bootstrap'
 import PdfViewerControls from './pdf-viewer-controls'
 import { useProjectContext } from '../../../shared/context/project-context'
 import usePersistedState from '../../../shared/hooks/use-persisted-state'
-import useScopeValue from '../../../shared/hooks/use-scope-value'
 import { buildHighlightElement } from '../util/highlights'
 import PDFJSWrapper from '../util/pdf-js-wrapper'
 import withErrorBoundary from '../../../infrastructure/error-boundary'
 import ErrorBoundaryFallback from './error-boundary-fallback'
+import { useCompileContext } from '../../../shared/context/compile-context'
+import getMeta from '../../../utils/meta'
 
 function PdfJsViewer({ url }) {
   const { _id: projectId } = useProjectContext()
+
+  const {
+    setError,
+    firstRenderDone,
+    highlights,
+    setPosition,
+  } = useCompileContext()
+  const [timePDFFetched, setTimePDFFetched] = useState()
 
   // state values persisted in localStorage to restore on load
   const [scale, setScale] = usePersistedState(
     `pdf-viewer-scale:${projectId}`,
     'page-width'
   )
-  const [, setScrollTop] = usePersistedState(
-    `pdf-viewer-scroll-top:${projectId}`,
-    0
-  )
-
-  // state values shared with Angular scope (highlights => editor, position => synctex buttons
-  const [highlights] = useScopeValue('pdf.highlights')
-  const [, setPosition] = useScopeValue('pdf.position')
 
   // local state values
   const [pdfJsWrapper, setPdfJsWrapper] = useState()
   const [initialised, setInitialised] = useState(false)
-  const [error, setError] = useState()
 
   // create the viewer when the container is mounted
   const handleContainer = useCallback(parent => {
@@ -45,41 +44,47 @@ function PdfJsViewer({ url }) {
   // listen for initialize event
   useEffect(() => {
     if (pdfJsWrapper) {
-      const handlePagesinit = () => setInitialised(true)
+      const handlePagesinit = () => {
+        setInitialised(true)
+        if (getMeta('ol-trackPdfDownload') && firstRenderDone) {
+          const visible = !document.hidden
+          if (!visible) {
+            firstRenderDone({
+              timePDFFetched,
+            })
+          } else {
+            const timePDFRendered = performance.now()
+            firstRenderDone({
+              timePDFFetched,
+              timePDFRendered,
+            })
+          }
+        }
+      }
       pdfJsWrapper.eventBus.on('pagesinit', handlePagesinit)
       return () => pdfJsWrapper.eventBus.off('pagesinit', handlePagesinit)
     }
-  }, [pdfJsWrapper])
+  }, [pdfJsWrapper, firstRenderDone, timePDFFetched])
 
   // load the PDF document from the URL
   useEffect(() => {
     if (pdfJsWrapper && url) {
+      setTimePDFFetched(performance.now())
       setInitialised(false)
       setError(undefined)
-      // TODO: anything else to be reset?
 
-      pdfJsWrapper.loadDocument(url).catch(error => setError(error))
+      pdfJsWrapper.loadDocument(url).catch(error => {
+        console.error(error)
+        setError('rendering-error')
+      })
       return () => pdfJsWrapper.abortDocumentLoading()
     }
-  }, [pdfJsWrapper, url])
-
-  useEffect(() => {
-    if (pdfJsWrapper) {
-      // listen for 'pdf:scroll-to-position' events
-      const eventListener = event => {
-        pdfJsWrapper.container.scrollTop = event.data.position
-      }
-
-      window.addEventListener('pdf:scroll-to-position', eventListener)
-
-      return () => {
-        window.removeEventListener('pdf:scroll-to-position', eventListener)
-      }
-    }
-  }, [pdfJsWrapper])
+  }, [pdfJsWrapper, url, setError])
 
   // listen for scroll events
   useEffect(() => {
+    let storePositionTimer
+
     if (initialised && pdfJsWrapper) {
       // store the scroll position in localStorage, for the synctex button
       const storePosition = debounce(pdfViewer => {
@@ -87,33 +92,30 @@ function PdfJsViewer({ url }) {
         try {
           setPosition(pdfViewer.currentPosition)
         } catch (error) {
-          // TODO
-          console.error(error)
+          // TODO: investigate handling missing offsetParent in jsdom
+          // console.error(error)
         }
       }, 500)
 
-      // store the scroll position in localStorage, for use when reloading
-      const storeScrollTop = debounce(pdfViewer => {
-        // set position for "sync to code" button
-        setScrollTop(pdfViewer.container.scrollTop)
-      }, 500)
-
-      storePosition(pdfJsWrapper)
+      storePositionTimer = window.setTimeout(() => {
+        storePosition(pdfJsWrapper)
+      }, 100)
 
       const scrollListener = () => {
-        storeScrollTop(pdfJsWrapper)
         storePosition(pdfJsWrapper)
       }
 
       pdfJsWrapper.container.addEventListener('scroll', scrollListener)
 
       return () => {
-        storePosition.cancel()
-        storeScrollTop.cancel()
         pdfJsWrapper.container.removeEventListener('scroll', scrollListener)
+        if (storePositionTimer) {
+          window.clearTimeout(storePositionTimer)
+        }
+        storePosition.cancel()
       }
     }
-  }, [setPosition, setScrollTop, pdfJsWrapper, initialised])
+  }, [setPosition, pdfJsWrapper, initialised])
 
   // listen for double-click events
   useEffect(() => {
@@ -142,19 +144,19 @@ function PdfJsViewer({ url }) {
   useEffect(() => {
     if (initialised && pdfJsWrapper) {
       setScale(scale => {
-        pdfJsWrapper.viewer.currentScaleValue = scale
+        setPosition(position => {
+          if (position) {
+            pdfJsWrapper.scrollToPosition(position, scale)
+          } else {
+            pdfJsWrapper.viewer.currentScaleValue = scale
+          }
+          return position
+        })
+
         return scale
       })
-
-      // restore the scroll position
-      setScrollTop(scrollTop => {
-        if (scrollTop > 0) {
-          pdfJsWrapper.container.scrollTop = scrollTop
-        }
-        return scrollTop
-      })
     }
-  }, [initialised, setScale, setScrollTop, pdfJsWrapper])
+  }, [initialised, setScale, setPosition, pdfJsWrapper])
 
   // transmit scale value to the viewer when it changes
   useEffect(() => {
@@ -166,12 +168,19 @@ function PdfJsViewer({ url }) {
   // when highlights are created, build the highlight elements
   useEffect(() => {
     if (pdfJsWrapper && highlights?.length) {
-      const elements = highlights.map(highlight =>
-        buildHighlightElement(highlight, pdfJsWrapper.viewer)
-      )
+      const elements = []
+
+      for (const highlight of highlights) {
+        try {
+          const element = buildHighlightElement(highlight, pdfJsWrapper.viewer)
+          elements.push(element)
+        } catch (error) {
+          // ignore invalid highlights
+        }
+      }
 
       // scroll to the first highlighted element
-      elements[0].scrollIntoView({
+      elements[0]?.scrollIntoView({
         block: 'start',
         inline: 'nearest',
         behavior: 'smooth',
@@ -250,7 +259,7 @@ function PdfJsViewer({ url }) {
   /* eslint-disable jsx-a11y/no-noninteractive-tabindex */
   /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
   return (
-    <div className="pdfjs-viewer" ref={handleContainer}>
+    <div className="pdfjs-viewer pdfjs-viewer-outer" ref={handleContainer}>
       <div
         className="pdfjs-viewer-inner"
         role="tabpanel"
@@ -262,11 +271,6 @@ function PdfJsViewer({ url }) {
       <div className="pdfjs-controls">
         <PdfViewerControls setZoom={setZoom} />
       </div>
-      {error && (
-        <div className="pdfjs-error">
-          <Alert bsStyle="danger">{error.message}</Alert>
-        </div>
-      )}
     </div>
   )
 }

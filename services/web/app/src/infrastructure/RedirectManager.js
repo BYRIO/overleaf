@@ -14,16 +14,14 @@
  */
 let RedirectManager
 const settings = require('@overleaf/settings')
-const logger = require('logger-sharelatex')
-const URL = require('url')
-const querystring = require('querystring')
+const { URL } = require('url')
 
 module.exports = RedirectManager = {
   apply(webRouter) {
     return (() => {
       const result = []
-      for (var redirectUrl in settings.redirects) {
-        var target = settings.redirects[redirectUrl]
+      for (const redirectUrl in settings.redirects) {
+        const target = settings.redirects[redirectUrl]
         result.push(
           Array.from(target.methods || ['get']).map(method =>
             webRouter[method](
@@ -75,8 +73,8 @@ module.exports = RedirectManager = {
 // Naively get the query params string. Stringifying the req.query object may
 // have differences between Express and Rails, so safer to just pass the raw
 // string
-var getQueryString = function (req) {
-  const { search } = URL.parse(req.url)
+function getQueryString(req) {
+  const { search } = new URL(req.originalUrl, settings.siteUrl)
   if (search) {
     return search
   } else {

@@ -18,8 +18,15 @@ const Queues = require('../../infrastructure/Queues')
  * Enqueue a job for refreshing features for the given user
  */
 async function scheduleRefreshFeatures(userId, reason) {
-  const queue = Queues.getRefreshFeaturesQueue()
+  const queue = Queues.getQueue('refresh-features')
   await queue.add({ userId, reason })
+}
+
+/* Check if user features refresh if needed, based on the global featuresEpoch setting */
+function featuresEpochIsCurrent(user) {
+  return Settings.featuresEpoch
+    ? user.featuresEpoch === Settings.featuresEpoch
+    : true
 }
 
 /**
@@ -197,6 +204,7 @@ function _getMatchedFeatureSet(features) {
 }
 
 module.exports = {
+  featuresEpochIsCurrent,
   computeFeatures: callbackify(computeFeatures),
   refreshFeatures: callbackifyMultiResult(refreshFeatures, [
     'features',

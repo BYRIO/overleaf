@@ -8,26 +8,34 @@ const _ = require('lodash')
 const { expressify } = require('../../util/promises')
 const { logger } = require('logger-sharelatex')
 
-const analyticsEventsQueue = Queues.getAnalyticsEventsQueue()
-const analyticsEditingSessionsQueue = Queues.getAnalyticsEditingSessionsQueue()
-const analyticsUserPropertiesQueue = Queues.getAnalyticsUserPropertiesQueue()
+const analyticsEventsQueue = Queues.getQueue('analytics-events')
+const analyticsEditingSessionsQueue = Queues.getQueue(
+  'analytics-editing-sessions'
+)
+const analyticsUserPropertiesQueue = Queues.getQueue(
+  'analytics-user-properties'
+)
 
 const ONE_MINUTE_MS = 60 * 1000
 
+const UUID_REGEXP = /^[\w]{8}(-[\w]{4}){3}-[\w]{12}$/
+
 function identifyUser(userId, analyticsId, isNewUser) {
-  if (!userId || !analyticsId || userId.toString() === analyticsId.toString()) {
+  if (!userId || !analyticsId || !analyticsId.toString().match(UUID_REGEXP)) {
     return
   }
   if (_isAnalyticsDisabled() || _isSmokeTestUser(userId)) {
     return
   }
   Metrics.analyticsQueue.inc({ status: 'adding', event_type: 'identify' })
-  analyticsEventsQueue
-    .add(
-      'identify',
-      { userId, analyticsId, isNewUser, createdAt: new Date() },
-      { delay: ONE_MINUTE_MS }
-    )
+  Queues.createScheduledJob(
+    'analytics-events',
+    {
+      name: 'identify',
+      data: { userId, analyticsId, isNewUser, createdAt: new Date() },
+    },
+    ONE_MINUTE_MS
+  )
     .then(() => {
       Metrics.analyticsQueue.inc({ status: 'added', event_type: 'identify' })
     })

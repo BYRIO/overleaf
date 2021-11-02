@@ -1,5 +1,4 @@
 /* eslint-disable
-    handle-callback-err,
     no-return-assign,
     no-unused-vars,
     node/no-deprecated-api,
@@ -17,8 +16,8 @@ const request = require('request').defaults({ jar: false })
 const fs = require('fs')
 const logger = require('logger-sharelatex')
 const settings = require('@overleaf/settings')
-const URL = require('url')
 const async = require('async')
+const { URL } = require('url')
 const { promisify } = require('util')
 
 const oneMinute = 60 * 1000
@@ -33,7 +32,7 @@ module.exports = UrlFetcher = {
 
   pipeUrlToFile(url, filePath, _callback) {
     if (_callback == null) {
-      _callback = function (error) {}
+      _callback = function () {}
     }
     const callbackOnce = function (error) {
       if (timeoutHandler != null) {
@@ -43,14 +42,14 @@ module.exports = UrlFetcher = {
       return (_callback = function () {})
     }
 
-    const u = URL.parse(url)
+    const u = new URL(url)
     if (
       settings.filestoreDomainOveride &&
       u.host !== settings.apis.clsiPerf.host
     ) {
-      url = `${settings.filestoreDomainOveride}${u.path}`
+      url = `${settings.filestoreDomainOveride}${u.pathname}${u.search}`
     }
-    var timeoutHandler = setTimeout(
+    let timeoutHandler = setTimeout(
       function () {
         timeoutHandler = null
         logger.error({ url, filePath }, 'Timed out downloading file to cache')

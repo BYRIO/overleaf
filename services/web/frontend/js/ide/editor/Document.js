@@ -250,7 +250,7 @@ export default Document = (function () {
 
     join(callback) {
       if (callback == null) {
-        callback = function (error) {}
+        callback = function () {}
       }
       this.wantToBeJoined = true
       this._cancelLeave()
@@ -266,7 +266,7 @@ export default Document = (function () {
 
     leave(callback) {
       if (callback == null) {
-        callback = function (error) {}
+        callback = function () {}
       }
       this.flush() // force an immediate flush when leaving document
       this.wantToBeJoined = false
@@ -302,7 +302,7 @@ export default Document = (function () {
       const orig = char
       let copy = null
       let pos = 0
-      var timer = () => {
+      const timer = () => {
         if (copy == null || !copy.length) {
           copy = orig.slice() + ' ' + new Date() + '\n'
           line += Math.random() > 0.1 ? 1 : -2
@@ -472,7 +472,7 @@ export default Document = (function () {
 
     _joinDoc(callback) {
       if (callback == null) {
-        callback = function (error) {}
+        callback = function () {}
       }
       if (this.doc != null) {
         this.ide.pushEvent('joinDoc:existing', {
@@ -563,7 +563,7 @@ export default Document = (function () {
 
     _leaveDoc(callback) {
       if (callback == null) {
-        callback = function (error) {}
+        callback = function () {}
       }
       this.ide.pushEvent('leaveDoc', {
         doc_id: this.doc_id,
@@ -751,11 +751,11 @@ export default Document = (function () {
       this.ranges.changes = changes
       this.ranges.comments = comments
       this.ranges.track_changes = this.doc.track_changes
-      for (var op of Array.from(this.doc.getInflightOp() || [])) {
+      for (const op of Array.from(this.doc.getInflightOp() || [])) {
         this.ranges.setIdSeed(this.doc.track_changes_id_seeds.inflight)
         this.ranges.applyOp(op, { user_id: this.track_changes_as })
       }
-      for (op of Array.from(this.doc.getPendingOp() || [])) {
+      for (const op of Array.from(this.doc.getPendingOp() || [])) {
         this.ranges.setIdSeed(this.doc.track_changes_id_seeds.pending)
         this.ranges.applyOp(op, { user_id: this.track_changes_as })
       }

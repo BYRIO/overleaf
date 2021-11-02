@@ -112,8 +112,8 @@ class ASpellWorker {
     })
 
     this.pipe.stdout.setEncoding('utf8') // ensure utf8 output is handled correctly
-    var output = ''
-    const endMarkerRegex = new RegExp('^[a-z][a-z]', 'gm')
+    let output = ''
+    const endMarkerRegex = /^[a-z]{2}/gm
     this.pipe.stdout.on('data', data => {
       // We receive the language code from Aspell as the end of data marker in
       // the data.  The input is a utf8 encoded string.
@@ -143,7 +143,7 @@ class ASpellWorker {
       }
     })
 
-    var error = ''
+    let error = ''
     this.pipe.stderr.on('data', chunk => {
       return (error = error + chunk)
     })

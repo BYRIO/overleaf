@@ -102,6 +102,10 @@ const UserSchema = new Schema({
       type: Boolean,
       default: Settings.defaultFeatures.referencesSearch,
     },
+    symbolPalette: {
+      type: Boolean,
+      default: Settings.defaultFeatures.symbolPalette,
+    },
   },
   featuresOverrides: [
     {
@@ -126,10 +130,14 @@ const UserSchema = new Schema({
         mendeley: { type: Boolean },
         zotero: { type: Boolean },
         referencesSearch: { type: Boolean },
+        symbolPalette: { type: Boolean },
       },
     },
   ],
   featuresUpdatedAt: { type: Date },
+  featuresEpoch: {
+    type: String,
+  },
   // when auto-merged from SL and must-reconfirm is set, we may end up using
   // `sharelatexHashedPassword` to recover accounts...
   sharelatexHashedPassword: String,

@@ -1,6 +1,5 @@
 /* eslint-disable
     camelcase,
-    handle-callback-err,
     no-unused-vars,
 */
 // TODO: This file was created by bulk-decaffeinate.
@@ -19,7 +18,7 @@ const metrics = require('@overleaf/metrics')
 module.exports = Notifications = {
   getUserNotifications(user_id, callback) {
     if (callback == null) {
-      callback = function (err, notifications) {}
+      callback = function () {}
     }
     const query = {
       user_id: ObjectId(user_id),
@@ -30,7 +29,7 @@ module.exports = Notifications = {
 
   _countExistingNotifications(user_id, notification, callback) {
     if (callback == null) {
-      callback = function (err, count) {}
+      callback = function () {}
     }
     const query = {
       user_id: ObjectId(user_id),
@@ -110,6 +109,22 @@ module.exports = Notifications = {
     const searchOps = { key: notification_key }
     const updateOperation = { $unset: { templateKey: true } }
     db.notifications.updateOne(searchOps, updateOperation, callback)
+  },
+
+  countNotificationsByKeyOnly(notificationKey, callback) {
+    const searchOps = { key: notificationKey, templateKey: { $exists: true } }
+    db.notifications.count(searchOps, callback)
+  },
+
+  deleteUnreadNotificationsByKeyOnlyBulk(notificationKey, callback) {
+    if (typeof notificationKey !== 'string') {
+      throw new Error('refusing to bulk delete arbitrary notifications')
+    }
+    const searchOps = { key: notificationKey, templateKey: { $exists: true } }
+    db.notifications.deleteMany(searchOps, (err, result) => {
+      if (err) return callback(err)
+      callback(null, result.deletedCount)
+    })
   },
 
   // hard delete of doc, rather than removing the templateKey

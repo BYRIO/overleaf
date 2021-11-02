@@ -1,7 +1,5 @@
 /* eslint-disable
     camelcase,
-    handle-callback-err,
-    no-path-concat,
     no-return-assign,
     no-unused-vars,
 */
@@ -27,7 +25,7 @@ const fixturePath = path => {
   if (path.slice(0, 3) === 'tmp') {
     return '/tmp/clsi_acceptance_tests' + path.slice(3)
   }
-  return Path.normalize(__dirname + '/../fixtures/' + path)
+  return Path.join(__dirname, '../fixtures/', path)
 }
 const process = require('process')
 console.log(
@@ -42,7 +40,7 @@ const MOCHA_LATEX_TIMEOUT = 60 * 1000
 
 const convertToPng = function (pdfPath, pngPath, callback) {
   if (callback == null) {
-    callback = function (error) {}
+    callback = function () {}
   }
   const command = `convert ${fixturePath(pdfPath)} ${fixturePath(pngPath)}`
   console.log('COMMAND')
@@ -56,7 +54,7 @@ const convertToPng = function (pdfPath, pngPath, callback) {
 
 const compare = function (originalPath, generatedPath, callback) {
   if (callback == null) {
-    callback = function (error, same) {}
+    callback = function () {}
   }
   const diff_file = `${fixturePath(generatedPath)}-diff.png`
   const proc = ChildProcess.exec(
@@ -84,7 +82,7 @@ const compare = function (originalPath, generatedPath, callback) {
 
 const checkPdfInfo = function (pdfPath, callback) {
   if (callback == null) {
-    callback = function (error, output) {}
+    callback = function () {}
   }
   const proc = ChildProcess.exec(`pdfinfo ${fixturePath(pdfPath)}`)
   let stdout = ''
@@ -101,9 +99,9 @@ const checkPdfInfo = function (pdfPath, callback) {
 
 const compareMultiplePages = function (project_id, callback) {
   if (callback == null) {
-    callback = function (error) {}
+    callback = function () {}
   }
-  var compareNext = function (page_no, callback) {
+  function compareNext(page_no, callback) {
     const path = `tmp/${project_id}-source-${page_no}.png`
     return fs.stat(fixturePath(path), (error, stat) => {
       if (error != null) {
@@ -128,7 +126,7 @@ const compareMultiplePages = function (project_id, callback) {
 
 const comparePdf = function (project_id, example_dir, callback) {
   if (callback == null) {
-    callback = function (error) {}
+    callback = function () {}
   }
   console.log('CONVERT')
   console.log(`tmp/${project_id}.pdf`, `tmp/${project_id}-generated.png`)
@@ -184,7 +182,7 @@ const downloadAndComparePdf = function (
   callback
 ) {
   if (callback == null) {
-    callback = function (error) {}
+    callback = function () {}
   }
   const writeStream = fs.createWriteStream(fixturePath(`tmp/${project_id}.pdf`))
   request.get(url).pipe(writeStream)

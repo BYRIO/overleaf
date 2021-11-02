@@ -5,6 +5,7 @@ import * as PDFJSViewer from 'pdfjs-dist/legacy/web/pdf_viewer'
 import PDFJSWorker from 'pdfjs-dist/legacy/build/pdf.worker'
 import 'pdfjs-dist/legacy/web/pdf_viewer.css'
 import getMeta from '../../../utils/meta'
+import { captureMessage } from '../../../infrastructure/error-reporter'
 
 if (typeof window !== 'undefined' && 'Worker' in window) {
   PDFJS.GlobalWorkerOptions.workerPort = new PDFJSWorker()
@@ -14,6 +15,7 @@ const params = new URLSearchParams(window.location.search)
 const disableFontFace = params.get('disable-font-face') === 'true'
 const cMapUrl = getMeta('ol-pdfCMapsPath')
 const imageResourcesPath = getMeta('ol-pdfImageResourcesPath')
+const disableStream = process.env.NODE_ENV !== 'test'
 
 const rangeChunkSize = 128 * 1024 // 128K chunks
 
@@ -42,6 +44,7 @@ export default class PDFJSWrapper {
       linkService,
       // l10n, // commented out since it currently breaks `aria-label` rendering in pdf pages
       enableScripting: false, // default is false, but set explicitly to be sure
+      enableXfa: false, // default is false (2021-10-12), but set explicitly to be sure
       renderInteractiveForms: false,
     })
 
@@ -54,8 +57,11 @@ export default class PDFJSWrapper {
 
   // load a document from a URL
   loadDocument(url) {
-    // prevents any previous loading task from populating the viewer
-    this.loadDocumentTask = undefined
+    // cancel any previous loading task
+    if (this.loadDocumentTask) {
+      this.loadDocumentTask.destroy()
+      this.loadDocumentTask = undefined
+    }
 
     return new Promise((resolve, reject) => {
       this.loadDocumentTask = PDFJS.getDocument({
@@ -65,7 +71,7 @@ export default class PDFJSWrapper {
         disableFontFace,
         rangeChunkSize,
         disableAutoFetch: true,
-        disableStream: true,
+        disableStream,
         textLayerMode: 2, // PDFJSViewer.TextLayerMode.ENABLE,
       })
 
@@ -88,6 +94,10 @@ export default class PDFJSWrapper {
         })
         .catch(error => {
           if (this.loadDocumentTask) {
+            if (error.name !== 'MissingPDFException') {
+              captureMessage(`pdf preview error ${error}`)
+            }
+
             reject(error)
           }
         })
@@ -148,6 +158,23 @@ export default class PDFJSWrapper {
       offset: { top, left: 0 },
       pageSize: { height, width },
     }
+  }
+
+  scrollToPosition(position, scale = null) {
+    const destArray = [
+      null,
+      {
+        name: 'XYZ', // 'XYZ' = scroll to the given coordinates
+      },
+      position.offset.left,
+      position.offset.top,
+      scale,
+    ]
+
+    this.viewer.scrollPageIntoView({
+      pageNumber: position.page + 1,
+      destArray,
+    })
   }
 
   abortDocumentLoading() {

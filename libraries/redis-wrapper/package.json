@@ -1,6 +1,6 @@
 {
   "name": "@overleaf/redis-wrapper",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Redis wrapper for node which will either use cluster or single instance redis",
   "main": "index.js",
   "files": [
@@ -11,7 +11,8 @@
   "repository": "github:overleaf/redis-wrapper",
   "license": "ISC",
   "scripts": {
-    "lint": "eslint --max-warnings 0 .",
+    "lint": "eslint --max-warnings 0 --format unix .",
+    "lint:fix": "eslint --fix .",
     "format": "prettier-eslint $PWD'/**/*.js' --list-different",
     "format:fix": "prettier-eslint $PWD'/**/*.js' --write",
     "test": "mocha --recursive test/unit/src/",
@@ -37,7 +38,7 @@
     "eslint-plugin-prettier": "^3.4.0",
     "eslint-plugin-promise": "^4.3.1",
     "eslint-plugin-standard": "^4.1.0",
-    "logger-sharelatex": "^2.2.0",
+    "@overleaf/logger": "^2.3.0",
     "mocha": "^8.3.2",
     "prettier": "^2.2.1",
     "prettier-eslint-cli": "^5.0.1",

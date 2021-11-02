@@ -1,15 +1,22 @@
 import { expect } from 'chai'
 import sinon from 'sinon'
 import fetchMock from 'fetch-mock'
-import { screen, fireEvent, waitFor } from '@testing-library/react'
+import { screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import PdfPreview from '../../../../../frontend/js/features/pdf-preview/components/pdf-preview'
 import { renderWithEditorContext } from '../../../helpers/render-with-context'
+import nock from 'nock'
+import path from 'path'
+import fs from 'fs'
+import { cloneDeep } from 'lodash'
+
+const examplePDF = path.join(__dirname, '../fixtures/test-example.pdf')
+const corruptPDF = path.join(__dirname, '../fixtures/test-example-corrupt.pdf')
 
 const outputFiles = [
   {
     path: 'output.pdf',
     build: '123',
-    url: '/build/output.pdf', // TODO: PDF URL to render
+    url: '/build/output.pdf',
     type: 'pdf',
   },
   {
@@ -50,8 +57,8 @@ const mockCompile = () =>
       status: 'success',
       clsiServerId: 'foo',
       compileGroup: 'priority',
-      pdfDownloadDomain: '',
-      outputFiles,
+      pdfDownloadDomain: 'https://clsi.test-overleaf.com',
+      outputFiles: cloneDeep(outputFiles),
     },
   })
 
@@ -77,7 +84,14 @@ const mockValidationProblems = validationProblems =>
 const mockClearCache = () =>
   fetchMock.delete('express:/project/:projectId/output', 204)
 
+const mockValidPdf = () => {
+  nock('https://clsi.test-overleaf.com')
+    .get(/^\/build\/output\.pdf/)
+    .replyWithFile(200, examplePDF)
+}
+
 const defaultFileResponses = {
+  '/build/output.pdf': () => fs.createReadStream(examplePDF),
   '/build/output.blg': 'This is BibTeX, Version 4.0', // FIXME
   '/build/output.log': `
 The LaTeX compiler output
@@ -103,7 +117,17 @@ LaTeX Font Info:    External font \`cmex10' loaded for size
 `,
 }
 
-const mockBuildFile = (responses = defaultFileResponses) =>
+const mockBuildFile = (responses = defaultFileResponses) => {
+  fetchMock.get('begin:https://clsi.test-overleaf.com/', _url => {
+    const url = new URL(_url, 'https://clsi.test-overleaf.com')
+
+    if (url.pathname in responses) {
+      return responses[url.pathname]
+    }
+
+    return 404
+  })
+
   fetchMock.get('express:/build/:file', (_url, options, request) => {
     const url = new URL(_url, 'https://example.com')
 
@@ -113,6 +137,7 @@ const mockBuildFile = (responses = defaultFileResponses) =>
 
     return 404
   })
+}
 
 const storeAndFireEvent = (key, value) => {
   localStorage.setItem(key, value)
@@ -132,27 +157,30 @@ const scope = {
 }
 
 describe('<PdfPreview/>', function () {
-  var clock
+  let clock
 
   beforeEach(function () {
+    window.showNewPdfPreview = true
     clock = sinon.useFakeTimers({
       shouldAdvanceTime: true,
       now: Date.now(),
     })
-    // xhrMock.setup()
+    nock.cleanAll()
   })
 
   afterEach(function () {
+    window.showNewPdfPreview = undefined
     clock.runAll()
     clock.restore()
-    // xhrMock.teardown()
     fetchMock.reset()
     localStorage.clear()
+    sinon.restore()
   })
 
   it('renders the PDF preview', async function () {
     mockCompile()
     mockBuildFile()
+    mockValidPdf()
 
     renderWithEditorContext(<PdfPreview />, { scope })
 
@@ -164,12 +192,15 @@ describe('<PdfPreview/>', function () {
   it('runs a compile when the Recompile button is pressed', async function () {
     mockCompile()
     mockBuildFile()
+    mockValidPdf()
 
     renderWithEditorContext(<PdfPreview />, { scope })
 
     // wait for "compile on load" to finish
     await screen.findByRole('button', { name: 'Compiling…' })
     await screen.findByRole('button', { name: 'Recompile' })
+
+    mockValidPdf()
 
     // press the Recompile button => compile
     const button = screen.getByRole('button', { name: 'Recompile' })
@@ -183,6 +214,7 @@ describe('<PdfPreview/>', function () {
   it('runs a compile on doc change if autocompile is enabled', async function () {
     mockCompile()
     mockBuildFile()
+    mockValidPdf()
 
     renderWithEditorContext(<PdfPreview />, { scope })
 
@@ -192,6 +224,8 @@ describe('<PdfPreview/>', function () {
 
     // switch on auto compile
     storeAndFireEvent('autocompile_enabled:project123', true)
+
+    mockValidPdf()
 
     // fire a doc:changed event => compile
     fireEvent(window, new CustomEvent('doc:changed'))
@@ -206,6 +240,7 @@ describe('<PdfPreview/>', function () {
   it('does not run a compile on doc change if autocompile is disabled', async function () {
     mockCompile()
     mockBuildFile()
+    mockValidPdf()
 
     renderWithEditorContext(<PdfPreview />, { scope })
 
@@ -227,6 +262,7 @@ describe('<PdfPreview/>', function () {
   it('does not run a compile on doc change if autocompile is blocked by syntax check', async function () {
     mockCompile()
     mockBuildFile()
+    mockValidPdf()
 
     renderWithEditorContext(<PdfPreview />, {
       scope: {
@@ -254,7 +290,52 @@ describe('<PdfPreview/>', function () {
   })
 
   it('displays an error message if there was a compile error', async function () {
-    mockCompileError('compile-in-progress')
+    const compileErrorStatuses = {
+      'clear-cache':
+        'Sorry, something went wrong and your project could not be compiled. Please try again in a few moments.',
+      'clsi-maintenance':
+        'The compile servers are down for maintenance, and will be back shortly.',
+      'compile-in-progress':
+        'A previous compile is still running. Please wait a minute and try compiling again.',
+      exited: 'Server Error',
+      failure: 'No PDF',
+      generic: 'Server Error',
+      'project-too-large': 'Project too large',
+      'rate-limited': 'Compile rate limit hit',
+      terminated: 'Compilation cancelled',
+      timedout: 'Timed out',
+      'too-recently-compiled':
+        'This project was compiled very recently, so this compile has been skipped.',
+      unavailable:
+        'Sorry, the compile server for your project was temporarily unavailable. Please try again in a few moments.',
+      foo:
+        'Sorry, something went wrong and your project could not be compiled. Please try again in a few moments.',
+    }
+
+    for (const [status, message] of Object.entries(compileErrorStatuses)) {
+      cleanup()
+      fetchMock.restore()
+      mockCompileError(status)
+
+      renderWithEditorContext(<PdfPreview />, { scope })
+
+      // wait for "compile on load" to finish
+      await screen.findByRole('button', { name: 'Compiling…' })
+      await screen.findByRole('button', { name: 'Recompile' })
+
+      screen.getByText(message)
+    }
+  })
+
+  it('displays expandable raw logs', async function () {
+    mockCompile()
+    mockBuildFile()
+    mockValidPdf()
+
+    // pretend that the content is large enough to trigger a "collapse"
+    // (in jsdom these values are always zero)
+    sinon.stub(HTMLElement.prototype, 'scrollHeight').value(500)
+    sinon.stub(HTMLElement.prototype, 'scrollWidth').value(500)
 
     renderWithEditorContext(<PdfPreview />, { scope })
 
@@ -262,12 +343,18 @@ describe('<PdfPreview/>', function () {
     await screen.findByRole('button', { name: 'Compiling…' })
     await screen.findByRole('button', { name: 'Recompile' })
 
-    screen.getByText(
-      'Please wait for your other compile to finish before trying again.'
-    )
+    const logsButton = screen.getByRole('button', { name: 'View logs' })
+    logsButton.click()
 
-    expect(fetchMock.called('express:/project/:projectId/compile')).to.be.true // TODO: auto_compile query param
-    expect(fetchMock.called('express:/build/:file')).to.be.false // TODO: actual path
+    await screen.findByRole('button', { name: 'View PDF' })
+
+    // expand the log
+    const [expandButton] = screen.getAllByRole('button', { name: 'Expand' })
+    expandButton.click()
+
+    // collapse the log
+    const [collapseButton] = screen.getAllByRole('button', { name: 'Collapse' })
+    collapseButton.click()
   })
 
   it('displays error messages if there were validation problems', async function () {
@@ -302,13 +389,14 @@ describe('<PdfPreview/>', function () {
     screen.getByText('Conflicting Paths Found')
 
     expect(fetchMock.called('express:/project/:projectId/compile')).to.be.true // TODO: auto_compile query param
-    expect(fetchMock.called('express:/build/:file')).to.be.false // TODO: actual path
+    expect(fetchMock.called('begin:https://clsi.test-overleaf.com/')).to.be
+      .false // TODO: actual path
   })
 
   it('sends a clear cache request when the button is pressed', async function () {
     mockCompile()
     mockBuildFile()
-    mockClearCache()
+    mockValidPdf()
 
     renderWithEditorContext(<PdfPreview />, { scope })
 
@@ -317,7 +405,7 @@ describe('<PdfPreview/>', function () {
     await screen.findByRole('button', { name: 'Recompile' })
 
     const logsButton = screen.getByRole('button', {
-      name: 'This project has an error',
+      name: 'View logs',
     })
     logsButton.click()
 
@@ -325,6 +413,8 @@ describe('<PdfPreview/>', function () {
       name: 'Clear cached files',
     })
     expect(clearCacheButton.hasAttribute('disabled')).to.be.false
+
+    mockClearCache()
 
     // click the button
     clearCacheButton.click()
@@ -334,13 +424,13 @@ describe('<PdfPreview/>', function () {
     })
 
     expect(fetchMock.called('express:/project/:projectId/compile')).to.be.true // TODO: auto_compile query param
-    expect(fetchMock.called('express:/build/:file')).to.be.true // TODO: actual path
+    expect(fetchMock.called('begin:https://clsi.test-overleaf.com/')).to.be.true // TODO: actual path
   })
 
   it('handle "recompile from scratch"', async function () {
     mockCompile()
     mockBuildFile()
-    mockClearCache()
+    mockValidPdf()
 
     renderWithEditorContext(<PdfPreview />, { scope })
 
@@ -350,7 +440,7 @@ describe('<PdfPreview/>', function () {
 
     // show the logs UI
     const logsButton = screen.getByRole('button', {
-      name: 'This project has an error',
+      name: 'View logs',
     })
     logsButton.click()
 
@@ -358,6 +448,9 @@ describe('<PdfPreview/>', function () {
       name: 'Clear cached files',
     })
     expect(clearCacheButton.hasAttribute('disabled')).to.be.false
+
+    mockValidPdf()
+    mockClearCache()
 
     const recompileFromScratch = screen.getByRole('menuitem', {
       name: 'Recompile from scratch',
@@ -373,6 +466,57 @@ describe('<PdfPreview/>', function () {
 
     expect(fetchMock.called('express:/project/:projectId/compile')).to.be.true // TODO: auto_compile query param
     expect(fetchMock.called('express:/project/:projectId/output')).to.be.true
-    expect(fetchMock.called('express:/build/:file')).to.be.true // TODO: actual path
+    expect(fetchMock.called('begin:https://clsi.test-overleaf.com/')).to.be.true // TODO: actual path
+  })
+
+  it('shows an error for an invalid URL', async function () {
+    mockCompile()
+    mockBuildFile()
+
+    nock('https://clsi.test-overleaf.com')
+      .get(/^\/build\/output.pdf/)
+      .replyWithError({
+        message: 'something awful happened',
+        code: 'AWFUL_ERROR',
+      })
+
+    const { rerender } = renderWithEditorContext(<PdfPreview />, { scope })
+
+    await screen.findByText('Something went wrong while rendering this PDF.')
+    expect(screen.queryByLabelText('Page 1')).to.not.exist
+
+    expect(nock.isDone()).to.be.true
+
+    mockValidPdf()
+
+    rerender(<PdfPreview />)
+
+    await screen.findByLabelText('Page 1')
+    expect(screen.queryByText('Something went wrong while rendering this PDF.'))
+      .to.not.exist
+  })
+
+  it('shows an error for a corrupt PDF', async function () {
+    mockCompile()
+    mockBuildFile()
+
+    nock('https://clsi.test-overleaf.com')
+      .get(/^\/build\/output.pdf/)
+      .replyWithFile(200, corruptPDF)
+
+    const { rerender } = renderWithEditorContext(<PdfPreview />, { scope })
+
+    await screen.findByText('Something went wrong while rendering this PDF.')
+    expect(screen.queryByLabelText('Page 1')).to.not.exist
+
+    expect(nock.isDone()).to.be.true
+
+    mockValidPdf()
+
+    rerender(<PdfPreview />)
+
+    await screen.findByLabelText('Page 1')
+    expect(screen.queryByText('Something went wrong while rendering this PDF.'))
+      .to.not.exist
   })
 })

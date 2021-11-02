@@ -1,6 +1,5 @@
 /* eslint-disable
     camelcase,
-    handle-callback-err,
     valid-typeof,
 */
 // TODO: This file was created by bulk-decaffeinate.
@@ -22,7 +21,7 @@ const Settings = require('@overleaf/settings')
 module.exports = HttpController = {
   getDoc(req, res, next) {
     if (next == null) {
-      next = function (error) {}
+      next = function () {}
     }
     const { project_id } = req.params
     const { doc_id } = req.params
@@ -73,7 +72,7 @@ module.exports = HttpController = {
 
   getRawDoc(req, res, next) {
     if (next == null) {
-      next = function (error) {}
+      next = function () {}
     }
     const { project_id } = req.params
     const { doc_id } = req.params
@@ -93,7 +92,7 @@ module.exports = HttpController = {
 
   getAllDocs(req, res, next) {
     if (next == null) {
-      next = function (error) {}
+      next = function () {}
     }
     const { project_id } = req.params
     logger.log({ project_id }, 'getting all docs')
@@ -117,14 +116,18 @@ module.exports = HttpController = {
     logger.log({ project_id }, 'getting all deleted docs')
     DocManager.getAllDeletedDocs(
       project_id,
-      { name: true },
+      { name: true, deletedAt: true },
       function (error, docs) {
         if (error) {
           return next(error)
         }
         res.json(
           docs.map(doc => {
-            return { _id: doc._id.toString(), name: doc.name }
+            return {
+              _id: doc._id.toString(),
+              name: doc.name,
+              deletedAt: doc.deletedAt,
+            }
           })
         )
       }
@@ -133,7 +136,7 @@ module.exports = HttpController = {
 
   getAllRanges(req, res, next) {
     if (next == null) {
-      next = function (error) {}
+      next = function () {}
     }
     const { project_id } = req.params
     logger.log({ project_id }, 'getting all ranges')
@@ -154,7 +157,7 @@ module.exports = HttpController = {
 
   updateDoc(req, res, next) {
     if (next == null) {
-      next = function (error) {}
+      next = function () {}
     }
     const { project_id } = req.params
     const { doc_id } = req.params
@@ -262,7 +265,7 @@ module.exports = HttpController = {
 
   archiveAllDocs(req, res, next) {
     if (next == null) {
-      next = function (error) {}
+      next = function () {}
     }
     const { project_id } = req.params
     logger.log({ project_id }, 'archiving all docs')
@@ -287,7 +290,7 @@ module.exports = HttpController = {
 
   unArchiveAllDocs(req, res, next) {
     if (next == null) {
-      next = function (error) {}
+      next = function () {}
     }
     const { project_id } = req.params
     logger.log({ project_id }, 'unarchiving all docs')
@@ -301,7 +304,7 @@ module.exports = HttpController = {
 
   destroyAllDocs(req, res, next) {
     if (next == null) {
-      next = function (error) {}
+      next = function () {}
     }
     const { project_id } = req.params
     logger.log({ project_id }, 'destroying all docs')

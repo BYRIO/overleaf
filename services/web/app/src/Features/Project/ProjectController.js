@@ -39,6 +39,7 @@ const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const Modules = require('../../infrastructure/Modules')
 const SplitTestV2Handler = require('../SplitTests/SplitTestV2Handler')
 const { getNewLogsUIVariantForUser } = require('../Helpers/NewLogsUI')
+const FeaturesUpdater = require('../Subscription/FeaturesUpdater')
 
 const _ssoAvailable = (affiliation, session, linkedInstitutionIds) => {
   if (!affiliation.institution) return false
@@ -566,7 +567,10 @@ const ProjectController = {
 
         // in v2 add notifications for matching university IPs
         if (Settings.overleaf != null && req.ip !== user.lastLoginIp) {
-          NotificationsBuilder.ipMatcherAffiliation(user._id).create(req.ip)
+          NotificationsBuilder.ipMatcherAffiliation(user._id).create(
+            req.ip,
+            () => {}
+          )
         }
 
         ProjectController._injectProjectUsers(projects, (error, projects) => {
@@ -661,16 +665,21 @@ const ProjectController = {
           } else {
             User.findById(
               userId,
-              'email first_name last_name referal_id signUpDate featureSwitches features refProviders alphaProgram betaProgram isAdmin ace',
+              'email first_name last_name referal_id signUpDate featureSwitches features featuresEpoch refProviders alphaProgram betaProgram isAdmin ace',
               (err, user) => {
                 // Handle case of deleted user
                 if (user == null) {
                   UserController.logout(req, res, next)
                   return
                 }
-
+                if (err) {
+                  return cb(err)
+                }
                 logger.log({ projectId, userId }, 'got user')
-                cb(err, user)
+                if (FeaturesUpdater.featuresEpochIsCurrent(user)) {
+                  return cb(null, user)
+                }
+                ProjectController._refreshFeatures(req, user, cb)
               }
             )
           }
@@ -872,7 +881,10 @@ const ProjectController = {
                 'new_navigation_ui',
                 true
               ),
-              showNewPdfPreview: shouldDisplayFeature('new_pdf_preview', false),
+              showNewPdfPreview: shouldDisplayFeature(
+                'new_pdf_preview',
+                user.alphaProgram
+              ),
               showSymbolPalette: shouldDisplayFeature(
                 'symbol_palette',
                 user.alphaProgram || user.betaProgram
@@ -886,6 +898,59 @@ const ProjectController = {
             timer.done()
           }
         )
+      }
+    )
+  },
+
+  _refreshFeatures(req, user, callback) {
+    // If the feature refresh has failed in this session, don't retry
+    // it - require the user to log in again.
+    if (req.session.feature_refresh_failed) {
+      metrics.inc('features-refresh', 1, {
+        path: 'load-editor',
+        status: 'skipped',
+      })
+      return callback(null, user)
+    }
+    // If the refresh takes too long then return the current
+    // features. Note that the user.features property may still be
+    // updated in the background after the callback is called.
+    callback = _.once(callback)
+    const refreshTimeoutHandler = setTimeout(() => {
+      req.session.feature_refresh_failed = { reason: 'timeout', at: new Date() }
+      metrics.inc('features-refresh', 1, {
+        path: 'load-editor',
+        status: 'timeout',
+      })
+      callback(null, user)
+    }, 5000)
+    // try to refresh user features now
+    const timer = new metrics.Timer('features-refresh-on-load-editor')
+    FeaturesUpdater.refreshFeatures(
+      user._id,
+      'load-editor',
+      (err, features) => {
+        clearTimeout(refreshTimeoutHandler)
+        timer.done()
+        if (err) {
+          // keep a record to prevent unneceary retries and leave
+          // the original features unmodified if the refresh failed
+          req.session.feature_refresh_failed = {
+            reason: 'error',
+            at: new Date(),
+          }
+          metrics.inc('features-refresh', 1, {
+            path: 'load-editor',
+            status: 'error',
+          })
+        } else {
+          user.features = features
+          metrics.inc('features-refresh', 1, {
+            path: 'load-editor',
+            status: 'success',
+          })
+        }
+        return callback(null, user)
       }
     )
   },
@@ -1062,7 +1127,7 @@ const ProjectController = {
   },
 }
 
-var defaultSettingsForAnonymousUser = userId => ({
+const defaultSettingsForAnonymousUser = userId => ({
   id: userId,
   ace: {
     mode: 'none',
@@ -1085,7 +1150,7 @@ var defaultSettingsForAnonymousUser = userId => ({
   betaProgram: false,
 })
 
-var THEME_LIST = []
+const THEME_LIST = []
 function generateThemeList() {
   const files = fs.readdirSync(
     Path.join(__dirname, '/../../../../node_modules/ace-builds/src-noconflict')

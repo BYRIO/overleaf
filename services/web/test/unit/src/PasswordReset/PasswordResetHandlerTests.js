@@ -23,7 +23,7 @@ const modulePath = path.join(
 
 describe('PasswordResetHandler', function () {
   beforeEach(function () {
-    this.settings = { siteUrl: 'www.sharelatex.com' }
+    this.settings = { siteUrl: 'https://www.overleaf.com' }
     this.OneTimeTokenHandler = {
       getNewToken: sinon.stub(),
       getValueFromTokenAndExpire: sinon.stub(),
@@ -356,7 +356,7 @@ describe('PasswordResetHandler', function () {
                     this.UserAuditLogHandler.promises.addEntry.callCount
                   ).to.equal(1)
                   expect(this.AuthenticationManager.promises.setUserPassword).to
-                    .have.been.called
+                    .not.have.been.called
                   done()
                 }
               )

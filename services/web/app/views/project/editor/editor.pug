@@ -18,37 +18,40 @@ div.full-size(
 		include ./editor-no-symbol-palette
 
 	.ui-layout-east
-		// The pdf-preview component needs to always be rendered, even when the editor is in "full-width" mode and it's not visible. 
-		// It doesn't recompile while hidden, due to the ui.pdfHidden flag, but maintains its state for when it's shown again.
-		if showNewPdfPreview
-			div(ng-show="ui.pdfLayout == 'sideBySide'")
+		div(ng-if="ui.pdfLayout == 'sideBySide'")
+			if showNewPdfPreview
 				pdf-preview()
-		else
-			div(ng-if="ui.pdfLayout == 'sideBySide'")
+			else
 				include ./pdf
 
-	.ui-layout-resizer-controls.synctex-controls(
-		ng-show="!!pdf.url && settings.pdfViewer !== 'native'"
-		ng-controller="PdfSynctexController"
-	)
-		a.btn.btn-default.btn-xs.synctex-control.synctex-control-goto-pdf(
-			tooltip=translate('go_to_code_location_in_pdf')
-			tooltip-placement="right"
-			tooltip-append-to-body="true"
-			ng-click="syncToPdf()"
-			ng-disabled="syncToPdfInFlight"
+	if showNewPdfPreview
+		.ui-layout-resizer-controls.synctex-controls(
+			ng-show="settings.pdfViewer !== 'native'"
 		)
-			i.synctex-control-icon(ng-show="!syncToPdfInFlight")
-			i.synctex-spin-icon.fa.fa-refresh.fa-spin(ng-show="syncToPdfInFlight")
-		a.btn.btn-default.btn-xs.synctex-control.synctex-control-goto-code(
-			tooltip=translate('go_to_pdf_location_in_code')
-			tooltip-placement="right"
-			tooltip-append-to-body="true"
-			ng-click="syncToCode()"
-			ng-disabled="syncToCodeInFlight"
+			pdf-synctex-controls()
+	else
+		.ui-layout-resizer-controls.synctex-controls(
+			ng-show="!!pdf.url && settings.pdfViewer !== 'native'"
+			ng-controller="PdfSynctexController"
 		)
-			i.synctex-control-icon(ng-show="!syncToCodeInFlight")
-			i.synctex-spin-icon.fa.fa-refresh.fa-spin(ng-show="syncToCodeInFlight")
+			a.btn.btn-default.btn-xs.synctex-control.synctex-control-goto-pdf(
+				tooltip=translate('go_to_code_location_in_pdf')
+				tooltip-placement="right"
+				tooltip-append-to-body="true"
+				ng-click="syncToPdf()"
+				ng-disabled="syncToPdfInFlight"
+			)
+				i.synctex-control-icon(ng-show="!syncToPdfInFlight")
+				i.synctex-spin-icon.fa.fa-refresh.fa-spin(ng-show="syncToPdfInFlight")
+			a.btn.btn-default.btn-xs.synctex-control.synctex-control-goto-code(
+				tooltip=translate('go_to_pdf_location_in_code')
+				tooltip-placement="right"
+				tooltip-append-to-body="true"
+				ng-click="syncToCode()"
+				ng-disabled="syncToCodeInFlight"
+			)
+				i.synctex-control-icon(ng-show="!syncToCodeInFlight")
+				i.synctex-spin-icon.fa.fa-refresh.fa-spin(ng-show="syncToCodeInFlight")
 
 div.full-size(
 	ng-if="ui.pdfLayout == 'flat'"

@@ -21,7 +21,7 @@ describe('InstitutionsAPI', function () {
           timeAsyncMethod: sinon.stub(),
         },
         '@overleaf/settings': this.settings,
-        request: this.request,
+        requestretry: this.request,
         '../Notifications/NotificationsBuilder': {
           ipMatcherAffiliation: sinon
             .stub()
@@ -52,6 +52,9 @@ describe('InstitutionsAPI', function () {
           const expectedUrl = `v1.url/api/v2/institutions/${this.institutionId}/affiliations`
           requestOptions.url.should.equal(expectedUrl)
           requestOptions.method.should.equal('GET')
+          requestOptions.maxAttempts.should.exist
+          requestOptions.maxAttempts.should.not.equal(0)
+          requestOptions.retryDelay.should.exist
           expect(requestOptions.body).not.to.exist
           body.should.equal(responseBody)
           done()
@@ -68,38 +71,6 @@ describe('InstitutionsAPI', function () {
           expect(err).not.to.exist
           expect(body).to.be.a('Array')
           body.length.should.equal(0)
-          done()
-        }
-      )
-    })
-  })
-
-  describe('getInstitutionLicences', function () {
-    it('get licences', function (done) {
-      this.institutionId = 123
-      const responseBody = {
-        lag: 'monthly',
-        data: [{ key: 'users', values: [{ x: '2018-01-01', y: 1 }] }],
-      }
-      this.request.yields(null, { statusCode: 200 }, responseBody)
-      const startDate = '1417392000'
-      const endDate = '1420848000'
-      this.InstitutionsAPI.getInstitutionLicences(
-        this.institutionId,
-        startDate,
-        endDate,
-        'monthly',
-        (err, body) => {
-          expect(err).not.to.exist
-          this.request.calledOnce.should.equal(true)
-          const requestOptions = this.request.lastCall.args[0]
-          const expectedUrl = `v1.url/api/v2/institutions/${this.institutionId}/institution_licences`
-          requestOptions.url.should.equal(expectedUrl)
-          requestOptions.method.should.equal('GET')
-          requestOptions.body.start_date.should.equal(startDate)
-          requestOptions.body.end_date.should.equal(endDate)
-          requestOptions.body.lag.should.equal('monthly')
-          body.should.equal(responseBody)
           done()
         }
       )
@@ -158,6 +129,7 @@ describe('InstitutionsAPI', function () {
           const expectedUrl = `v1.url/api/v2/users/${this.stubbedUser._id}/affiliations`
           requestOptions.url.should.equal(expectedUrl)
           requestOptions.method.should.equal('GET')
+          requestOptions.maxAttempts.should.equal(3)
           expect(requestOptions.body).not.to.exist
           body.should.equal(responseBody)
           done()
@@ -239,6 +211,7 @@ describe('InstitutionsAPI', function () {
           const expectedUrl = `v1.url/api/v2/users/${this.stubbedUser._id}/affiliations`
           requestOptions.url.should.equal(expectedUrl)
           requestOptions.method.should.equal('POST')
+          requestOptions.maxAttempts.should.equal(0)
 
           const { body } = requestOptions
           Object.keys(body).length.should.equal(7)

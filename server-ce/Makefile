@@ -30,4 +30,4 @@ build-community:
 		-t $(aliyun_tag) \
 		$(MONOREPO_ROOT)
 
-PHONY: build-base build-community
+.PHONY: build-base build-community

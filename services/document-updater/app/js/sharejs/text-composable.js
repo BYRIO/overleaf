@@ -77,7 +77,9 @@ const checkOp = function (op) {
 exports._makeAppend = makeAppend = op =>
   function (component) {
     if (component === 0 || component.i === '' || component.d === '') {
-    } else if (op.length === 0) {
+      return
+    }
+    if (op.length === 0) {
       return op.push(component)
     } else if (
       typeof component === 'number' &&
@@ -228,7 +230,7 @@ exports.transform = function (op, otherOp, side) {
   const [take, peek] = Array.from(makeTake(op))
 
   for (component of Array.from(otherOp)) {
-    var chunk, length
+    let chunk, length
     if (typeof component === 'number') {
       // Skip
       length = component
@@ -306,7 +308,7 @@ exports.compose = function (op1, op2) {
   const [take, _] = Array.from(makeTake(op1))
 
   for (component of Array.from(op2)) {
-    var chunk, length
+    let chunk, length
     if (typeof component === 'number') {
       // Skip
       length = component

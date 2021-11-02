@@ -42,7 +42,7 @@ module.exports = ReferencesHandler = {
 
   _findBibFileIds(project) {
     const ids = []
-    var _process = function (folder) {
+    function _process(folder) {
       _.each(folder.fileRefs || [], function (file) {
         if (
           __guard__(file != null ? file.name : undefined, x1 =>
@@ -60,7 +60,7 @@ module.exports = ReferencesHandler = {
 
   _findBibDocIds(project) {
     const ids = []
-    var _process = function (folder) {
+    function _process(folder) {
       _.each(folder.docs || [], function (doc) {
         if (
           __guard__(doc != null ? doc.name : undefined, x1 =>
@@ -78,7 +78,7 @@ module.exports = ReferencesHandler = {
 
   _isFullIndex(project, callback) {
     if (callback == null) {
-      callback = function (err, result) {}
+      callback = function () {}
     }
     return UserGetter.getUser(
       project.owner_ref,
@@ -99,7 +99,7 @@ module.exports = ReferencesHandler = {
 
   indexAll(projectId, callback) {
     if (callback == null) {
-      callback = function (err, data) {}
+      callback = function () {}
     }
     return ProjectGetter.getProject(
       projectId,
@@ -127,7 +127,7 @@ module.exports = ReferencesHandler = {
 
   index(projectId, docIds, callback) {
     if (callback == null) {
-      callback = function (err, data) {}
+      callback = function () {}
     }
     return ProjectGetter.getProject(
       projectId,

@@ -1,8 +1,6 @@
-import Icon from '../../../shared/components/icon'
 import { useTranslation } from 'react-i18next'
-import PreviewLogsPaneEntry from '../../preview/components/preview-logs-pane-entry'
-import { usePdfPreviewContext } from '../contexts/pdf-preview-context'
 import { memo } from 'react'
+import classnames from 'classnames'
 import PdfValidationIssue from './pdf-validation-issue'
 import TimeoutUpgradePrompt from './timeout-upgrade-prompt'
 import PdfPreviewError from './pdf-preview-error'
@@ -11,7 +9,10 @@ import PdfDownloadFilesButton from './pdf-download-files-button'
 import PdfLogsEntries from './pdf-logs-entries'
 import withErrorBoundary from '../../../infrastructure/error-boundary'
 import ErrorBoundaryFallback from './error-boundary-fallback'
-import { LogsPaneInfoNotice } from '../../preview/components/preview-logs-pane'
+import PdfCodeCheckFailedNotice from './pdf-code-check-failed-notice'
+import PdfLogsPaneInfoNotice from './pdf-logs-pane-info-notice'
+import { useCompileContext } from '../../../shared/context/compile-context'
+import PdfLogEntry from './pdf-log-entry'
 
 function PdfLogsViewer() {
   const {
@@ -20,26 +21,17 @@ function PdfLogsViewer() {
     logEntries,
     rawLog,
     validationIssues,
-  } = usePdfPreviewContext()
+    showLogs,
+  } = useCompileContext()
 
   const { t } = useTranslation()
 
   return (
-    <div className="logs-pane">
+    <div className={classnames('logs-pane', { hidden: !showLogs })}>
       <div className="logs-pane-content">
-        <LogsPaneInfoNotice />
-        {codeCheckFailed && (
-          <div className="log-entry">
-            <div className="log-entry-header log-entry-header-error">
-              <div className="log-entry-header-icon-container">
-                <Icon type="exclamation-triangle" modifier="fw" />
-              </div>
-              <h3 className="log-entry-header-title">
-                {t('code_check_failed_explanation')}
-              </h3>
-            </div>
-          </div>
-        )}
+        <PdfLogsPaneInfoNotice />
+
+        {codeCheckFailed && <PdfCodeCheckFailedNotice />}
 
         {error && <PdfPreviewError error={error} />}
 
@@ -53,7 +45,7 @@ function PdfLogsViewer() {
         {logEntries?.all && <PdfLogsEntries entries={logEntries.all} />}
 
         {rawLog && (
-          <PreviewLogsPaneEntry
+          <PdfLogEntry
             headerTitle={t('raw_logs')}
             rawContent={rawLog}
             entryAriaLabel={t('raw_logs_description')}

@@ -13,7 +13,7 @@
  */
 let V1SubscriptionManager
 const UserGetter = require('../User/UserGetter')
-const request = require('request')
+const request = require('requestretry')
 const settings = require('@overleaf/settings')
 const { V1ConnectionError, NotFoundError } = require('../Errors/Errors')
 const { promisifyAll } = require('../../util/promises')
@@ -27,7 +27,7 @@ module.exports = V1SubscriptionManager = {
   //   - 'v1_free'
   getPlanCodeFromV1(userId, callback) {
     if (callback == null) {
-      callback = function (err, planCode, v1Id) {}
+      callback = function () {}
     }
     return V1SubscriptionManager._v1Request(
       userId,
@@ -55,7 +55,7 @@ module.exports = V1SubscriptionManager = {
 
   getSubscriptionsFromV1(userId, callback) {
     if (callback == null) {
-      callback = function (err, subscriptions, v1Id) {}
+      callback = function () {}
     }
     return V1SubscriptionManager._v1Request(
       userId,
@@ -71,7 +71,7 @@ module.exports = V1SubscriptionManager = {
 
   getSubscriptionStatusFromV1(userId, callback) {
     if (callback == null) {
-      callback = function (err, status) {}
+      callback = function () {}
     }
     return V1SubscriptionManager._v1Request(
       userId,
@@ -87,7 +87,7 @@ module.exports = V1SubscriptionManager = {
 
   cancelV1Subscription(userId, callback) {
     if (callback == null) {
-      callback = function (err) {}
+      callback = function () {}
     }
     return V1SubscriptionManager._v1Request(
       userId,
@@ -103,7 +103,7 @@ module.exports = V1SubscriptionManager = {
 
   v1IdForUser(userId, callback) {
     if (callback == null) {
-      callback = function (err, v1Id) {}
+      callback = function () {}
     }
     return UserGetter.getUser(
       userId,
@@ -142,7 +142,7 @@ module.exports = V1SubscriptionManager = {
 
   _v1Request(userId, options, callback) {
     if (callback == null) {
-      callback = function (err, body, v1Id) {}
+      callback = function () {}
     }
     if (!settings.apis.v1.url) {
       return callback(null, null)
@@ -156,56 +156,60 @@ module.exports = V1SubscriptionManager = {
         return callback(null, null, null)
       }
       const url = options.url(v1Id)
-      return request(
-        {
-          baseUrl: settings.apis.v1.url,
-          url,
-          method: options.method,
-          auth: {
-            user: settings.apis.v1.user,
-            pass: settings.apis.v1.pass,
-            sendImmediately: true,
-          },
-          json: true,
-          timeout: 15 * 1000,
+      const requestOptions = {
+        baseUrl: settings.apis.v1.url,
+        url,
+        method: options.method,
+        auth: {
+          user: settings.apis.v1.user,
+          pass: settings.apis.v1.pass,
+          sendImmediately: true,
         },
-        function (error, response, body) {
-          if (error != null) {
-            return callback(
-              new V1ConnectionError({
-                message: 'no v1 connection',
-                info: { url },
-              }).withCause(error)
-            )
-          }
-          if (response && response.statusCode >= 500) {
-            return callback(
-              new V1ConnectionError({
-                message: 'error from v1',
-                info: {
-                  status: response.statusCode,
-                  body: body,
-                },
-              })
-            )
-          }
-          if (response.statusCode >= 200 && response.statusCode < 300) {
-            return callback(null, body, v1Id)
+        json: true,
+        timeout: 15 * 1000,
+      }
+      if (options.method === 'GET') {
+        requestOptions.maxAttempts = 3
+        requestOptions.retryDelay = 500
+      } else {
+        requestOptions.maxAttempts = 0
+      }
+      request(requestOptions, function (error, response, body) {
+        if (error != null) {
+          return callback(
+            new V1ConnectionError({
+              message: 'no v1 connection',
+              info: { url },
+            }).withCause(error)
+          )
+        }
+        if (response && response.statusCode >= 500) {
+          return callback(
+            new V1ConnectionError({
+              message: 'error from v1',
+              info: {
+                status: response.statusCode,
+                body: body,
+              },
+            })
+          )
+        }
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return callback(null, body, v1Id)
+        } else {
+          if (response.statusCode === 404) {
+            return callback(new NotFoundError(`v1 user not found: ${userId}`))
           } else {
-            if (response.statusCode === 404) {
-              return callback(new NotFoundError(`v1 user not found: ${userId}`))
-            } else {
-              return callback(
-                new Error(
-                  `non-success code from v1: ${response.statusCode} ${
-                    options.method
-                  } ${options.url(v1Id)}`
-                )
+            return callback(
+              new Error(
+                `non-success code from v1: ${response.statusCode} ${
+                  options.method
+                } ${options.url(v1Id)}`
               )
-            }
+            )
           }
         }
-      )
+      })
     })
   },
 }
