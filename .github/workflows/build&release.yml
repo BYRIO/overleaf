@@ -37,4 +37,5 @@ jobs:
         run: |
           export tag="$(git rev-parse --short HEAD)-${GITHUB_RUN_ID}"
           export aliyun_tag="registry.cn-hangzhou.aliyuncs.com/byrio/overleaf:${tag}"
+          echo "Publishing ${aliyun_tag}"
           docker push ${aliyun_tag}
