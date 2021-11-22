@@ -4,6 +4,9 @@ const WRITE_CONCURRENCY = parseInt(process.env.WRITE_CONCURRENCY, 10) || 5
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE, 10) || 100
 // persist fallback in order to keep batchedUpdate in-sync
 process.env.BATCH_SIZE = BATCH_SIZE
+// raise mongo timeout to 1hr if otherwise unspecified
+process.env.MONGO_SOCKET_TIMEOUT =
+  parseInt(process.env.MONGO_SOCKET_TIMEOUT, 10) || 3600000
 
 const { ReadPreference, ObjectId } = require('mongodb')
 const { db } = require('../../app/src/infrastructure/mongodb')
@@ -17,6 +20,7 @@ const COUNT = {
   NoneWithoutConversion: 0,
   NoneWithConversion: 0,
   NoneWithTemporaryHistory: 0,
+  HistoryUpgradeFailed: 0,
 }
 
 // Timestamp of when 'Enable history for SL in background' release
@@ -35,9 +39,27 @@ async function processProject(project) {
   if (
     project.overleaf &&
     project.overleaf.history &&
+    project.overleaf.history.upgradeFailed
+  ) {
+    // a failed history upgrade might look like a v1 project, but history may be broken
+    COUNT.HistoryUpgradeFailed += 1
+    return
+  }
+  if (
+    project.overleaf &&
+    project.overleaf.history &&
     project.overleaf.history.id
   ) {
-    if (project.overleaf.history.display) {
+    if (project.overleaf.history.upgradeFailed) {
+      COUNT.HistoryUpgradeFailed += 1
+      if (VERBOSE_LOGGING) {
+        console.log(
+          `project ${
+            project[VERBOSE_PROJECT_NAMES ? 'name' : '_id']
+          } has a history upgrade failure recorded`
+        )
+      }
+    } else if (project.overleaf.history.display) {
       // v2: full project history, do nothing, (query shoudln't include any, but we should stlll check?)
       COUNT.v2 += 1
       if (VERBOSE_LOGGING) {
@@ -209,6 +231,9 @@ async function main() {
     _id: 1,
     overleaf: 1,
   }
+  const options = {
+    hint: { _id: 1 },
+  }
   if (VERBOSE_PROJECT_NAMES) {
     projection.name = 1
   }
@@ -216,7 +241,8 @@ async function main() {
     'projects',
     { 'overleaf.history.display': { $ne: true } },
     processBatch,
-    projection
+    projection,
+    options
   )
   console.log('Final')
   console.log(COUNT)

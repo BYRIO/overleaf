@@ -1,10 +1,13 @@
-const SCRIPT_VERSION = 1
+const SCRIPT_VERSION = 2
 const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
 const WRITE_CONCURRENCY = parseInt(process.env.WRITE_CONCURRENCY, 10) || 10
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE, 10) || 100
 const DRY_RUN = process.env.DRY_RUN !== 'false'
 // persist fallback in order to keep batchedUpdate in-sync
 process.env.BATCH_SIZE = BATCH_SIZE
+// raise mongo timeout to 1hr if otherwise unspecified
+process.env.MONGO_SOCKET_TIMEOUT =
+  parseInt(process.env.MONGO_SOCKET_TIMEOUT, 10) || 3600000
 
 const { ReadPreference, ObjectId } = require('mongodb')
 const { db } = require('../../app/src/infrastructure/mongodb')
@@ -38,6 +41,14 @@ async function processBatch(_, projects) {
 
 async function processProject(project) {
   // safety check
+  if (
+    project.overleaf &&
+    project.overleaf.history &&
+    project.overleaf.history.upgradeFailed
+  ) {
+    // a failed history upgrade might look like a v1 project, but history may be broken
+    return
+  }
   if (!projectCreatedAfterFullProjectHistoryEnabled(project)) {
     return
   }

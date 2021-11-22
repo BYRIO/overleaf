@@ -4,7 +4,7 @@ const OError = require('@overleaf/o-error')
 const fs = require('fs')
 const crypto = require('crypto')
 const async = require('async')
-const logger = require('logger-sharelatex')
+const logger = require('@overleaf/logger')
 const { ObjectId } = require('mongodb')
 const ProjectDeleter = require('./ProjectDeleter')
 const ProjectDuplicator = require('./ProjectDuplicator')
@@ -733,8 +733,27 @@ const ProjectController = {
             }
           )
         },
+        newPdfPreviewAssignment(cb) {
+          SplitTestV2Handler.getAssignmentForSession(
+            req.session,
+            'react-pdf-preview-rollout',
+            (err, assignment) => {
+              cb(err, assignment)
+            }
+          )
+        },
       },
-      (err, { project, user, subscription, isTokenMember, brandVariation }) => {
+      (
+        err,
+        {
+          project,
+          user,
+          subscription,
+          isTokenMember,
+          brandVariation,
+          newPdfPreviewAssignment,
+        }
+      ) => {
         if (err != null) {
           OError.tag(err, 'error getting details for project page')
           return next(err)
@@ -819,6 +838,31 @@ const ProjectController = {
               return shouldDisplayFeature('enable_pdf_caching', false)
             }
 
+            let showNewPdfPreview = shouldDisplayFeature(
+              'new_pdf_preview',
+              newPdfPreviewAssignment.variant === 'react-pdf-preview'
+            )
+
+            let disableAngularRouter = shouldDisplayFeature(
+              'disable_angular_router',
+              user.alphaProgram
+            )
+
+            const showPdfDetach = shouldDisplayFeature(
+              'pdf_detach',
+              user.alphaProgram
+            )
+
+            const debugPdfDetach = shouldDisplayFeature('debug_pdf_detach')
+
+            let detachRole = null
+
+            if (showPdfDetach) {
+              disableAngularRouter = true
+              showNewPdfPreview = true
+              detachRole = req.params.detachRole
+            }
+
             res.render('project/editor', {
               title: project.name,
               priority_title: true,
@@ -877,13 +921,13 @@ const ProjectController = {
                 logsUIVariant.newLogsUI
               ),
               logsUISubvariant: logsUIVariant.subvariant,
-              showNewNavigationUI: shouldDisplayFeature(
-                'new_navigation_ui',
-                true
-              ),
-              showNewPdfPreview: shouldDisplayFeature(
-                'new_pdf_preview',
-                user.alphaProgram
+              showPdfDetach,
+              debugPdfDetach,
+              showNewPdfPreview,
+              disableAngularRouter,
+              showNewSourceEditor: shouldDisplayFeature(
+                'new_source_editor',
+                false
               ),
               showSymbolPalette: shouldDisplayFeature(
                 'symbol_palette',
@@ -894,6 +938,7 @@ const ProjectController = {
               resetServiceWorker:
                 Boolean(Settings.resetServiceWorker) &&
                 !shouldDisplayFeature('enable_pdf_caching', false),
+              detachRole,
             })
             timer.done()
           }

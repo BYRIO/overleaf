@@ -8,6 +8,7 @@ import {
 } from 'react'
 import PropTypes from 'prop-types'
 import useScopeValue from '../hooks/use-scope-value'
+import useScopeValueSetterOnly from '../hooks/use-scope-value-setter-only'
 import usePersistedState from '../hooks/use-persisted-state'
 import useAbortController from '../hooks/use-abort-controller'
 import DocumentCompiler from '../../features/pdf-preview/util/compiler'
@@ -37,7 +38,6 @@ CompileContext.Provider.propTypes = {
     error: PropTypes.string,
     fileList: PropTypes.object,
     hasChanges: PropTypes.bool.isRequired,
-    hasLintingError: PropTypes.bool,
     highlights: PropTypes.arrayOf(PropTypes.object),
     logEntries: PropTypes.object,
     logEntryAnnotations: PropTypes.object,
@@ -75,7 +75,7 @@ export function CompileProvider({ children }) {
   const [compiling, setCompiling] = useState(false)
 
   // the log entries parsed from the compile output log
-  const [logEntries, setLogEntries] = useScopeValue('pdf.logEntries')
+  const [logEntries, setLogEntries] = useScopeValueSetterOnly('pdf.logEntries')
 
   // annotations for display in the editor, built from the log entries
   const [logEntryAnnotations, setLogEntryAnnotations] = useScopeValue(
@@ -86,10 +86,12 @@ export function CompileProvider({ children }) {
   const [pdfViewer] = useScopeValue('settings.pdfViewer')
 
   // the URL for downloading the PDF
-  const [pdfDownloadUrl, setPdfDownloadUrl] = useScopeValue('pdf.downloadUrl')
+  const [pdfDownloadUrl, setPdfDownloadUrl] = useScopeValueSetterOnly(
+    'pdf.downloadUrl'
+  )
 
   // the URL for loading the PDF in the preview pane
-  const [pdfUrl, setPdfUrl] = useScopeValue('pdf.url')
+  const [pdfUrl, setPdfUrl] = useScopeValueSetterOnly('pdf.url')
 
   // the project is considered to be "uncompiled" if a doc has changed since the last compile started
   const [uncompiled, setUncompiled] = useScopeValue('pdf.uncompiled')
@@ -161,6 +163,13 @@ export function CompileProvider({ children }) {
 
   const { signal } = useAbortController()
 
+  const cleanupCompileResult = useCallback(() => {
+    setPdfUrl(null)
+    setPdfDownloadUrl(null)
+    setLogEntries(null)
+    setLogEntryAnnotations({})
+  }, [setPdfUrl, setPdfDownloadUrl, setLogEntries, setLogEntryAnnotations])
+
   // the document compiler
   const [compiler] = useState(() => {
     return new DocumentCompiler({
@@ -170,6 +179,7 @@ export function CompileProvider({ children }) {
       setData,
       setFirstRenderDone,
       setError,
+      cleanupCompileResult,
       signal,
     })
   })
@@ -215,11 +225,6 @@ export function CompileProvider({ children }) {
     if (data) {
       if (data.clsiServerId) {
         setClsiServerId(data.clsiServerId) // set in scope, for PdfSynctexController
-        compiler.clsiServerId = data.clsiServerId
-      }
-
-      if (data.compileGroup) {
-        compiler.compileGroup = data.compileGroup
       }
 
       if (data.outputFiles) {
@@ -227,10 +232,12 @@ export function CompileProvider({ children }) {
           setLogEntryAnnotations(
             buildLogEntryAnnotations(result.logEntries.all, ide.fileTreeManager)
           )
+          if (data.status === 'success') {
+            setPdfDownloadUrl(result.pdfDownloadUrl)
+            setPdfUrl(result.pdfUrl)
+          }
           setLogEntries(result.logEntries)
           setFileList(result.fileList)
-          setPdfDownloadUrl(result.pdfDownloadUrl)
-          setPdfUrl(result.pdfUrl)
           setRawLog(result.log)
 
           // sample compile stats for real users
@@ -304,7 +311,6 @@ export function CompileProvider({ children }) {
       }
     }
   }, [
-    compiler,
     data,
     ide,
     hasPremiumCompile,
@@ -422,10 +428,9 @@ export function CompileProvider({ children }) {
       error,
       fileList,
       hasChanges,
-      hasLintingError,
       highlights,
-      logEntries,
       logEntryAnnotations,
+      logEntries,
       pdfDownloadUrl,
       pdfUrl,
       pdfViewer,
@@ -433,7 +438,6 @@ export function CompileProvider({ children }) {
       rawLog,
       recompileFromScratch,
       setAutoCompile,
-      setClearingCache,
       setCompiling,
       setDraft,
       setError,
@@ -461,7 +465,6 @@ export function CompileProvider({ children }) {
       error,
       fileList,
       hasChanges,
-      hasLintingError,
       highlights,
       logEntries,
       logEntryAnnotations,
@@ -474,7 +477,7 @@ export function CompileProvider({ children }) {
       setAutoCompile,
       setDraft,
       setError,
-      setHasLintingError,
+      setHasLintingError, // only for stories
       setHighlights,
       setPosition,
       setStopOnValidationError,

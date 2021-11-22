@@ -7,7 +7,8 @@
   border-bottom: @toolbar-border-bottom;
 
   > a,
-  .toolbar-right > a {
+  .toolbar-right > a,
+  button {
     position: relative;
     .label {
       position: absolute;
@@ -19,7 +20,15 @@
     }
   }
 
-  > a:focus {
+  .toolbar-right {
+    button {
+      background: transparent;
+      box-shadow: none;
+    }
+  }
+
+  > a:focus,
+  button:focus {
     outline: none;
   }
 
@@ -148,6 +157,20 @@
 
   &.toolbar-alt {
     .toolbar-alt-mixin;
+  }
+}
+
+#layout-dropdown {
+  // override style added by required bsStyle react-bootstrap prop
+  text-decoration: none !important;
+}
+
+#layout-dropdown-list {
+  a {
+    i,
+    svg {
+      margin-right: @margin-xs;
+    }
   }
 }
 
@@ -308,6 +331,14 @@
     color: @toolbar-btn-active-color;
     background-color: @toolbar-btn-active-bg-color;
     box-shadow: @toolbar-btn-active-shadow;
+
+    &:focus {
+      color: @toolbar-btn-active-color;
+
+      &:not(:focus-visible) {
+        outline: none;
+      }
+    }
   }
 
   &:focus {
@@ -374,4 +405,62 @@
   cursor: not-allowed;
   .opacity(0.65);
   .box-shadow(none);
+}
+
+.menu-item-with-svg {
+  svg {
+    line,
+    rect {
+      stroke: @dropdown-link-color;
+    }
+    path {
+      fill: @dropdown-link-color;
+    }
+  }
+
+  a:hover,
+  a:focus {
+    svg {
+      line,
+      rect {
+        stroke: @dropdown-link-hover-color;
+      }
+      path {
+        fill: @dropdown-link-hover-color;
+      }
+    }
+  }
+
+  &.disabled {
+    .subdued {
+      color: @dropdown-link-disabled-color;
+    }
+
+    svg {
+      line,
+      rect {
+        stroke: @dropdown-link-disabled-color;
+      }
+      path {
+        fill: @dropdown-link-disabled-color;
+      }
+    }
+
+    a:hover,
+    a:focus {
+      .subdued {
+        color: @dropdown-link-disabled-color;
+      }
+
+      svg {
+        line,
+        rect {
+          stroke: @dropdown-link-disabled-color;
+        }
+        path {
+          fill: @dropdown-link-disabled-color;
+        }
+      }
+    }
+  }
 }
