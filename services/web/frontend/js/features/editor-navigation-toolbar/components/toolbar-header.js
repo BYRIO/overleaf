@@ -1,9 +1,11 @@
 import React from 'react'
 import PropTypes from 'prop-types'
+import { useTranslation } from 'react-i18next'
 import MenuButton from './menu-button'
 import CobrandingLogo from './cobranding-logo'
 import BackToProjectsButton from './back-to-projects-button'
 import ChatToggleButton from './chat-toggle-button'
+import LayoutDropdownButton from './layout-dropdown-button'
 import OnlineUsersWidget from './online-users-widget'
 import ProjectNameEditableLabel from './project-name-editable-label'
 import TrackChangesToggleButton from './track-changes-toggle-button'
@@ -16,8 +18,13 @@ const [publishModalModules] = importOverleafModules('publishModal')
 const PublishButton = publishModalModules?.import.default
 
 const ToolbarHeader = React.memo(function ToolbarHeader({
+  reattach,
+  detach,
+  detachMode,
+  detachRole,
   cobranding,
   onShowLeftMenuClick,
+  handleChangeLayout,
   chatIsOpen,
   toggleChatOpen,
   reviewPanelOpen,
@@ -33,17 +40,24 @@ const ToolbarHeader = React.memo(function ToolbarHeader({
   renameProject,
   hasRenamePermissions,
   openShareModal,
+  pdfLayout,
   pdfViewIsOpen,
   pdfButtonIsVisible,
   togglePdfView,
   trackChangesVisible,
+  view,
 }) {
+  const { t } = useTranslation()
   const shouldDisplayPublishButton = hasPublishPermissions && PublishButton
   const shouldDisplayTrackChangesButton =
     trackChangesVisible && !isRestrictedTokenMember
 
   return (
-    <header className="toolbar toolbar-header toolbar-with-labels">
+    <header
+      className="toolbar toolbar-header toolbar-with-labels"
+      role="navigation"
+      aria-label={t('project_layout_sharing_submission')}
+    >
       <div className="toolbar-left">
         <MenuButton onClick={onShowLeftMenuClick} />
         {cobranding && cobranding.logoImgUrl && (
@@ -51,7 +65,7 @@ const ToolbarHeader = React.memo(function ToolbarHeader({
         )}
         <BackToProjectsButton />
       </div>
-      {pdfButtonIsVisible && (
+      {!window.showPdfDetach && pdfButtonIsVisible && (
         <PdfToggleButton
           onClick={togglePdfView}
           pdfViewIsOpen={pdfViewIsOpen}
@@ -66,6 +80,18 @@ const ToolbarHeader = React.memo(function ToolbarHeader({
 
       <div className="toolbar-right">
         <OnlineUsersWidget onlineUsers={onlineUsers} goToUser={goToUser} />
+
+        {window.showPdfDetach && (
+          <LayoutDropdownButton
+            reattach={reattach}
+            detach={detach}
+            handleChangeLayout={handleChangeLayout}
+            detachMode={detachMode}
+            detachRole={detachRole}
+            pdfLayout={pdfLayout}
+            view={view}
+          />
+        )}
 
         {shouldDisplayTrackChangesButton && (
           <TrackChangesToggleButton
@@ -97,7 +123,12 @@ const ToolbarHeader = React.memo(function ToolbarHeader({
 })
 
 ToolbarHeader.propTypes = {
+  reattach: PropTypes.func.isRequired,
+  detach: PropTypes.func.isRequired,
+  detachMode: PropTypes.string,
+  detachRole: PropTypes.string,
   onShowLeftMenuClick: PropTypes.func.isRequired,
+  handleChangeLayout: PropTypes.func.isRequired,
   cobranding: PropTypes.object,
   chatIsOpen: PropTypes.bool,
   toggleChatOpen: PropTypes.func.isRequired,
@@ -114,10 +145,12 @@ ToolbarHeader.propTypes = {
   renameProject: PropTypes.func.isRequired,
   hasRenamePermissions: PropTypes.bool,
   openShareModal: PropTypes.func.isRequired,
+  pdfLayout: PropTypes.string.isRequired,
   pdfViewIsOpen: PropTypes.bool,
   pdfButtonIsVisible: PropTypes.bool,
   togglePdfView: PropTypes.func.isRequired,
   trackChangesVisible: PropTypes.bool,
+  view: PropTypes.string,
 }
 
 export default ToolbarHeader

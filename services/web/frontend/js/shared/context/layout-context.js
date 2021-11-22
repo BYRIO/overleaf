@@ -1,6 +1,14 @@
-import { createContext, useContext, useCallback, useMemo } from 'react'
+import {
+  createContext,
+  useContext,
+  useCallback,
+  useMemo,
+  useEffect,
+} from 'react'
 import PropTypes from 'prop-types'
 import useScopeValue from '../hooks/use-scope-value'
+import usePreviousValue from '../hooks/use-previous-value'
+import useDetachLayout from '../hooks/use-detach-layout'
 import { useIdeContext } from './ide-context'
 import localStorage from '../../infrastructure/local-storage'
 
@@ -64,8 +72,50 @@ export function LayoutProvider({ children }) {
     })
   }, [setPdfLayout, setView])
 
+  const changeLayout = useCallback(
+    (newLayout, newView) => {
+      setPdfLayout(newLayout)
+      setView(newLayout === 'sideBySide' ? 'editor' : newView)
+      localStorage.setItem('pdf.layout', newLayout)
+    },
+    [setPdfLayout, setView]
+  )
+
+  const {
+    reattach,
+    detach,
+    mode: detachMode,
+    role: detachRole,
+  } = useDetachLayout()
+  const previousDetachMode = usePreviousValue(detachMode)
+
+  useEffect(() => {
+    switch (detachMode) {
+      case 'detacher':
+        changeLayout('flat', 'editor')
+        break
+      case 'detaching':
+        changeLayout('flat', 'editor')
+        break
+      case 'detached':
+        break
+      case 'orphan':
+        break
+      case null:
+        if (previousDetachMode) {
+          changeLayout('sideBySide')
+        }
+        break
+    }
+  }, [detachMode, previousDetachMode, changeLayout])
+
   const value = useMemo(
     () => ({
+      reattach,
+      detach,
+      detachMode,
+      detachRole,
+      changeLayout,
       chatIsOpen,
       leftMenuShown,
       pdfLayout,
@@ -79,6 +129,11 @@ export function LayoutProvider({ children }) {
       view,
     }),
     [
+      reattach,
+      detach,
+      detachMode,
+      detachRole,
+      changeLayout,
       chatIsOpen,
       leftMenuShown,
       pdfLayout,
