@@ -21,7 +21,7 @@ const crypto = require('crypto')
 const request = require('request')
 const Settings = require('@overleaf/settings')
 const xml2js = require('xml2js')
-const logger = require('logger-sharelatex')
+const logger = require('@overleaf/logger')
 const Async = require('async')
 const Errors = require('../Errors/Errors')
 const SubscriptionErrors = require('./Errors')
@@ -439,9 +439,9 @@ const RecurlyWrapper = {
   apiRequest(options, callback) {
     options.url = RecurlyWrapper.apiUrl + '/' + options.url
     options.headers = {
-      Authorization: `Basic ${new Buffer(Settings.apis.recurly.apiKey).toString(
-        'base64'
-      )}`,
+      Authorization: `Basic ${Buffer.from(
+        Settings.apis.recurly.apiKey
+      ).toString('base64')}`,
       Accept: 'application/xml',
       'Content-Type': 'application/xml; charset=utf-8',
       'X-Api-Version': Settings.apis.recurly.apiVersion,

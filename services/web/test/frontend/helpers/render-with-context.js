@@ -6,6 +6,7 @@ import sinon from 'sinon'
 import { UserProvider } from '../../../frontend/js/shared/context/user-context'
 import { EditorProvider } from '../../../frontend/js/shared/context/editor-context'
 import { LayoutProvider } from '../../../frontend/js/shared/context/layout-context'
+import { DetachProvider } from '../../../frontend/js/shared/context/detach-context'
 import { ChatProvider } from '../../../frontend/js/features/chat/context/chat-context'
 import { IdeProvider } from '../../../frontend/js/shared/context/ide-context'
 import { get } from 'lodash'
@@ -13,9 +14,14 @@ import { ProjectProvider } from '../../../frontend/js/shared/context/project-con
 import { SplitTestProvider } from '../../../frontend/js/shared/context/split-test-context'
 import { CompileProvider } from '../../../frontend/js/shared/context/compile-context'
 
+// these constants can be imported in tests instead of
+// using magic strings
+export const PROJECT_ID = 'project123'
+export const PROJECT_NAME = 'project-name'
+
 export function EditorProviders({
   user = { id: '123abd', email: 'testuser@example.com' },
-  projectId = 'project123',
+  projectId = PROJECT_ID,
   socket = {
     on: sinon.stub(),
     removeListener: sinon.stub(),
@@ -24,6 +30,7 @@ export function EditorProviders({
   clsiServerId = '1234',
   scope,
   children,
+  rootFolder,
 }) {
   window.user = user || window.user
   window.gitBridgePublicBaseUrl = 'git.overleaf.test'
@@ -34,11 +41,15 @@ export function EditorProviders({
     user: window.user,
     project: {
       _id: window.project_id,
-      name: 'project-name',
+      name: PROJECT_NAME,
       owner: {
         _id: '124abd',
         email: 'owner@example.com',
       },
+      rootDoc_id: '_root_doc_id',
+    },
+    rootFolder: rootFolder || {
+      children: [],
     },
     ui: {
       chatOpen: true,
@@ -62,7 +73,16 @@ export function EditorProviders({
 
   const editorManager = {
     getCurrentDocId: () => 'foo',
+    getCurrentDocValue: () => {},
     openDoc: sinon.stub(),
+  }
+
+  const metadataManager = {
+    metadata: {
+      state: {
+        documents: {},
+      },
+    },
   }
 
   window._ide = {
@@ -71,6 +91,7 @@ export function EditorProviders({
     clsiServerId,
     editorManager,
     fileTreeManager,
+    metadataManager,
   }
 
   return (
@@ -80,7 +101,9 @@ export function EditorProviders({
           <ProjectProvider>
             <EditorProvider settings={{}}>
               <CompileProvider>
-                <LayoutProvider>{children}</LayoutProvider>
+                <DetachProvider>
+                  <LayoutProvider>{children}</LayoutProvider>
+                </DetachProvider>
               </CompileProvider>
             </EditorProvider>
           </ProjectProvider>

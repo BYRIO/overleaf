@@ -5,7 +5,7 @@ const SubscriptionViewModelBuilder = require('./SubscriptionViewModelBuilder')
 const LimitationsManager = require('./LimitationsManager')
 const RecurlyWrapper = require('./RecurlyWrapper')
 const Settings = require('@overleaf/settings')
-const logger = require('logger-sharelatex')
+const logger = require('@overleaf/logger')
 const GeoIpLookup = require('../../infrastructure/GeoIpLookup')
 const FeaturesUpdater = require('./FeaturesUpdater')
 const planFeatures = require('./planFeatures')
@@ -18,9 +18,6 @@ const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const RecurlyEventHandler = require('./RecurlyEventHandler')
 const { expressify } = require('../../util/promises')
 const OError = require('@overleaf/o-error')
-const {
-  getAssignmentForSession,
-} = require('../SplitTests/SplitTestV2Handler').promises
 
 const groupPlanModalOptions = Settings.groupPlanModalOptions
 const validGroupPlanModalOptions = {
@@ -58,16 +55,7 @@ async function plansPage(req, res) {
     usage: getDefault('usage', 'usage', 'enterprise'),
   }
 
-  const { variant: templateVariant } = await getAssignmentForSession(
-    req.session,
-    'plans-page-de-ng'
-  )
-  const template =
-    templateVariant === 'de-ng'
-      ? 'subscriptions/plans-marketing'
-      : 'subscriptions/plans'
-
-  res.render(template, {
+  res.render('subscriptions/plans-marketing', {
     title: 'plans_and_pricing',
     plans,
     gaExperiments: Settings.gaExperiments.plansPage,
@@ -235,7 +223,7 @@ function successfulSubscription(req, res, next) {
   const user = SessionManager.getSessionUser(req.session)
   return SubscriptionViewModelBuilder.buildUsersSubscriptionViewModel(
     user,
-    function (error, { personalSubscription }) {
+    function (error, { personalSubscription } = {}) {
       if (error) {
         return next(error)
       }

@@ -22,6 +22,7 @@ describe('<OutlinePane />', function () {
       value: {
         getItem: sinon.stub().returns(null),
         setItem: sinon.stub(),
+        removeItem: sinon.stub(),
       },
     })
   })
@@ -76,7 +77,13 @@ describe('<OutlinePane />', function () {
   })
 
   it('expand outline and use local storage', function () {
-    global.localStorage.getItem.returns(false)
+    global.localStorage.getItem.callsFake(key => {
+      if (key.startsWith('file_outline.expanded.')) {
+        return false
+      }
+      return null
+    })
+
     const outline = [
       {
         title: 'Section',

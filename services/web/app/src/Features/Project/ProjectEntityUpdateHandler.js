@@ -1,7 +1,7 @@
 const _ = require('lodash')
 const OError = require('@overleaf/o-error')
 const async = require('async')
-const logger = require('logger-sharelatex')
+const logger = require('@overleaf/logger')
 const Settings = require('@overleaf/settings')
 const Path = require('path')
 const fs = require('fs')
@@ -1355,31 +1355,143 @@ const ProjectEntityUpdateHandler = {
             if (error != null) {
               return callback(error)
             }
-
-            docs = _.map(docs, doc => ({
-              doc: doc.doc._id,
-              path: doc.path,
-            }))
-
-            files = _.map(files, file => ({
-              file: file.file._id,
-              path: file.path,
-              url: FileStoreHandler._buildUrl(projectId, file.file._id),
-              _hash: file.file.hash,
-            }))
-
-            DocumentUpdaterHandler.resyncProjectHistory(
+            ProjectEntityUpdateHandler._checkFiletree(
               projectId,
               projectHistoryId,
-              docs,
-              files,
-              callback
+              [...docs, ...files],
+              error => {
+                if (error) {
+                  return callback(error)
+                }
+                docs = _.map(docs, doc => ({
+                  doc: doc.doc._id,
+                  path: doc.path,
+                }))
+
+                files = _.map(files, file => ({
+                  file: file.file._id,
+                  path: file.path,
+                  url: FileStoreHandler._buildUrl(projectId, file.file._id),
+                  _hash: file.file.hash,
+                }))
+
+                DocumentUpdaterHandler.resyncProjectHistory(
+                  projectId,
+                  projectHistoryId,
+                  docs,
+                  files,
+                  callback
+                )
+              }
             )
           }
         )
       }
     )
   ),
+
+  _checkFiletree(projectId, projectHistoryId, entities, callback) {
+    const renames = []
+    const paths = new Set()
+    for (const entity of entities) {
+      const filename = entity.doc ? entity.doc.name : entity.file.name
+      const cleanFilename = SafePath.clean(filename)
+      if (cleanFilename !== filename) {
+        // File name needs to be cleaned
+        let newPath = Path.join(
+          entity.path.slice(0, -filename.length),
+          cleanFilename
+        )
+        if (paths.has(newPath)) {
+          newPath = ProjectEntityUpdateHandler.findNextAvailablePath(
+            paths,
+            newPath
+          )
+        }
+        renames.push({ entity, newName: cleanFilename, newPath })
+      } else if (paths.has(entity.path)) {
+        // Duplicate filename
+        const newPath = ProjectEntityUpdateHandler.findNextAvailablePath(
+          paths,
+          entity.path
+        )
+        const newName = newPath.split('/').pop()
+        renames.push({ entity, newName, newPath })
+        paths.add(newPath)
+      } else {
+        paths.add(entity.path)
+      }
+    }
+
+    if (renames.length === 0) {
+      return callback()
+    }
+    logger.warn(
+      {
+        projectId,
+        renames: renames.map(rename => ({
+          oldPath: rename.entity.path,
+          newPath: rename.newPath,
+        })),
+      },
+      'found conflicts or bad filenames in filetree'
+    )
+
+    // rename the duplicate files
+    const doRename = (rename, cb) => {
+      const entity = rename.entity
+      const entityId = entity.doc ? entity.doc._id : entity.file._id
+      const entityType = entity.doc ? 'doc' : 'file'
+      ProjectEntityMongoUpdateHandler.renameEntity(
+        projectId,
+        entityId,
+        entityType,
+        rename.newName,
+        (err, project, startPath, endPath, rev, changes) => {
+          if (err) {
+            return cb(err)
+          }
+          // update the renamed entity for the resync
+          entity.path = rename.newPath
+          if (entityType === 'doc') {
+            entity.doc.name = rename.newName
+          } else {
+            entity.file.name = rename.newName
+          }
+          DocumentUpdaterHandler.updateProjectStructure(
+            projectId,
+            projectHistoryId,
+            null,
+            changes,
+            cb
+          )
+        }
+      )
+    }
+    async.eachSeries(renames, doRename, callback)
+  },
+
+  findNextAvailablePath(allPaths, candidatePath) {
+    const incrementReplacer = (match, p1) => {
+      return ' (' + (parseInt(p1, 10) + 1) + ')'
+    }
+    // if the filename was invalid we should normalise it here too.  Currently
+    // this only handles renames in the same folder, so we will be out of luck
+    // if it is the folder name which in invalid.  We could handle folder
+    // renames by returning the folders list from getAllEntitiesFromProject
+    do {
+      // does the filename look like "foo (1)" if so, increment the number in parentheses
+      if (/ \(\d+\)$/.test(candidatePath)) {
+        candidatePath = candidatePath.replace(/ \((\d+)\)$/, incrementReplacer)
+      } else {
+        // otherwise, add a ' (1)' suffix to the name
+        candidatePath = candidatePath + ' (1)'
+      }
+    } while (allPaths.has(candidatePath)) // keep going until the name is unique
+    // add the new name to the set
+    allPaths.add(candidatePath)
+    return candidatePath
+  },
 
   isPathValidForRootDoc(docPath) {
     const docExtension = Path.extname(docPath)

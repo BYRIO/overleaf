@@ -1,7 +1,7 @@
 let ProjectZipStreamManager
 const archiver = require('archiver')
 const async = require('async')
-const logger = require('logger-sharelatex')
+const logger = require('@overleaf/logger')
 const ProjectEntityHandler = require('../Project/ProjectEntityHandler')
 const ProjectGetter = require('../Project/ProjectGetter')
 const FileStoreHandler = require('../FileStore/FileStoreHandler')
@@ -22,6 +22,13 @@ module.exports = ProjectZipStreamManager = {
       ProjectGetter.getProject(projectId, { name: true }, (error, project) => {
         if (error) {
           return cb(error)
+        }
+        if (!project) {
+          logger.log(
+            { projectId },
+            'cannot append project to zip stream: project not found'
+          )
+          return cb()
         }
         logger.log(
           { projectId, name: project.name },

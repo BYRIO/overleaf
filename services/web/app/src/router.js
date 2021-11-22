@@ -50,13 +50,14 @@ const InstitutionsController = require('./Features/Institutions/InstitutionsCont
 const UserMembershipRouter = require('./Features/UserMembership/UserMembershipRouter')
 const SystemMessageController = require('./Features/SystemMessages/SystemMessageController')
 const AnalyticsRegistrationSourceMiddleware = require('./Features/Analytics/AnalyticsRegistrationSourceMiddleware')
+const AnalyticsUTMTrackingMiddleware = require('./Features/Analytics/AnalyticsUTMTrackingMiddleware')
 const { Joi, validate } = require('./infrastructure/Validation')
 const {
   renderUnsupportedBrowserPage,
   unsupportedBrowserMiddleware,
 } = require('./infrastructure/UnsupportedBrowserMiddleware')
 
-const logger = require('logger-sharelatex')
+const logger = require('@overleaf/logger')
 const _ = require('underscore')
 
 module.exports = { initialize }
@@ -69,6 +70,7 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
   }
 
   webRouter.get('*', AnalyticsRegistrationSourceMiddleware.setInbound())
+  webRouter.get('*', AnalyticsUTMTrackingMiddleware.recordUTMTags())
 
   webRouter.get('/login', UserPagesController.loginPage)
   AuthenticationController.addEndpointToLoginWhitelist('/login')
@@ -292,18 +294,25 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     ProjectController.newProject
   )
 
-  webRouter.get(
+  for (const route of [
+    // Keep the old route for continuous metrics
     '/Project/:Project_id',
-    RateLimiterMiddleware.rateLimit({
-      endpointName: 'open-project',
-      params: ['Project_id'],
-      maxRequests: 15,
-      timeInterval: 60,
-    }),
-    AuthenticationController.validateUserSession(),
-    AuthorizationMiddleware.ensureUserCanReadProject,
-    ProjectController.loadEditor
-  )
+    // New route for pdf-detach
+    '/Project/:Project_id/:detachRole(detacher|detached)',
+  ]) {
+    webRouter.get(
+      route,
+      RateLimiterMiddleware.rateLimit({
+        endpointName: 'open-project',
+        params: ['Project_id'],
+        maxRequests: 15,
+        timeInterval: 60,
+      }),
+      AuthenticationController.validateUserSession(),
+      AuthorizationMiddleware.ensureUserCanReadProject,
+      ProjectController.loadEditor
+    )
+  }
   webRouter.head(
     '/Project/:Project_id/file/:File_id',
     AuthorizationMiddleware.ensureUserCanReadProject,

@@ -1,5 +1,5 @@
 # the base image is suitable for running web with /app bind mounted
-FROM node:12.22.7 as base
+FROM node:14.18.1 as base
 
 WORKDIR /app
 
@@ -30,6 +30,7 @@ RUN mkdir -p /app/data/dumpFolder && \
   mkdir -p /app/data/pdf && \
   mkdir -p /app/data/uploads && \
   mkdir -p /app/data/zippedProjects && \
+  mkdir -p /app/data/projectHistories && \
   chmod -R 0755 /app/data/ && \
   chown -R node:node /app/data/
 
