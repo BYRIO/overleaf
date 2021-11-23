@@ -20,10 +20,6 @@ const bodyParser = require('body-parser')
 app.use(bodyParser.json({ limit: '2mb' }))
 app.use(metrics.http.monitor(logger))
 
-// app.delete('/user/:user_id', SpellingAPIController.deleteDic)
-// app.get('/user/:user_id', SpellingAPIController.getDic)
-// app.post('/user/:user_id/check', SpellingAPIController.check)
-// app.post('/user/:user_id/learn', SpellingAPIController.learn)
 app.post('/project/:project_id/index', ReferencesAPIController.index)
 app.get('/status', (req, res) => res.send({ status: 'references api is up' }))
 

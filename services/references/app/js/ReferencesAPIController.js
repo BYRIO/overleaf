@@ -12,9 +12,8 @@ const bibParse = require('./BibParser')
 module.exports = {
   index(req, res) {
     const { docUrls, fullIndex } = req.body;
-    logger.info({docUrls, fullIndex}, "!@#!@#");
     async.parallel(docUrls.map(docUrl => function(cb){request.get(docUrl, cb)}), function(err, argsList){
-      const keys = [];
+      let keys = [];
       argsList.forEach(([res, body]) => {
         if(body){
           const result = bibParse(body);
@@ -22,7 +21,7 @@ module.exports = {
           keys.push(...resultKeys);
         }
       });
-      keys.filter(item => item !== '@comments')
+      keys = keys.filter(item => item !== '@comments');
       logger.info({ keys }, "all keys");
       res.send({ keys })
     })
