@@ -1,290 +1,211 @@
-// Original work by Henrik Muehe (c) 2010
-//
-// CommonJS port by Mikola Lysenko 2013
-//
-// modified by Tackoil 2021
-
-// Issues:
-//  no comment handling within strings
-//  no string concatenation
-//  no variable values yet
+"use strict";
 
 // Grammar implemented here:
-//  bibtex -> (string | preamble | comment | entry)*;
-//  string -> '@STRING' '{' key_equals_value '}';
-//  preamble -> '@PREAMBLE' '{' value '}';
-//  comment -> '@COMMENT' '{' value '}';
-//  entry -> '@' key '{' key ',' key_value_list '}';
-//  key_value_list -> key_equals_value (',' key_equals_value)*;
+//  bibtex -> (string | entry)*;
+//  string -> '@STRING' kv_left key_equals_value kv_right;
+//  entry -> '@' key kv_left key ',' key_value_list kv_right;
+//  key_value_list -> key_equals_value (',' key_equals_value)* ','?;
 //  key_equals_value -> key '=' value;
 //  value -> value_quotes | value_braces | key;
 //  value_quotes -> '"' .*? '"'; // not quite
 //  value_braces -> '{' .*? '"'; // not quite
+//  kv_left -> '(' | '{'
+//  kv_right -> ')' | '}'
 function BibtexParser() {
-  this.pos = 0;
-  this.input = "";
-  
-  this.entries = {};
-  this.comments = [];
-  this.strings = {
-      JAN: "January",
-      FEB: "February",
-      MAR: "March",      
-      APR: "April",
-      MAY: "May",
-      JUN: "June",
-      JUL: "July",
-      AUG: "August",
-      SEP: "September",
-      OCT: "October",
-      NOV: "November",
-      DEC: "December"
-  };
-  this.currentKey = "";
-  this.currentEntry = "";
-  this.isInEntry = false;
-
+  this._entries = {};
+  this._comments = [];
+  this._strings = {};
+  this.input = '';
   this.config = {
-      losseComments: true, 
-      uppperKeys: false,
-  }
-  
+    upperKeys: false
+  };
+  this._pos = 0;
+  var pairs = {
+    '{': '}',
+    '(': ')',
+    '"': '"'
+  };
+  var regs = {
+    atKey: /@([a-zA-Z0-9_:\\./-]+)\s*/,
+    enLeft: /^([\{\(])\s*/,
+    enRight: function enRight(left) {
+      return new RegExp("^(\\".concat(pairs[left], ")\\s*"));
+    },
+    entryId: /^\s*([a-zA-Z0-9_:\\./-]+)\s*,\s*/,
+    key: /^([a-zA-Z0-9_:\\./-]+)\s*=\s*/,
+    vLeft: /^([\{"])\s*/,
+    vRight: function vRight(left) {
+      return new RegExp("^(\\".concat(pairs[left], ")\\s*"));
+    },
+    inVLeft: /^(\{)\s*/,
+    inVRight: function inVRight(left) {
+      return new RegExp("^(\\".concat(pairs[left], ")\\s*"));
+    },
+    value: /^[\{"]((?:[^\{\}]|\n)*?(?:(?:[^\{\}]|\n)*?\{(?:[^\{\}]|\n)*?\})*?(?:[^\{\}]|\n)*?)[\}"]\s*,?\s*/,
+    word: /^([^\{\}"\s]+)\s*/,
+    comma: /^(,)\s*/,
+    quota: /^(")\s*/
+  };
 
-  this.setInput = function(t) {
+  this.setInput = function (t) {
     this.input = t;
-  }
-  
-  this.getEntries = function() {
-      return this.entries;
-  }
+  };
 
-  this.isWhitespace = function(s) {
-    return (s == ' ' || s == '\r' || s == '\t' || s == '\n');
-  }
+  this.matchFirst = function (reg) {
+    var notMove = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+    var result = this.input.slice(this._pos).match(reg);
 
-  this.match = function(s) {
-    this.skipWhitespace();
-    if (this.input.substring(this.pos, this.pos+s.length) == s) {
-      this.pos += s.length;
+    if (result) {
+      if (!notMove) {
+        // console.log("!@#!@#", result[1]);
+        this._pos += result.index + result[0].length;
+      }
+
+      return {
+        success: true,
+        text: result[1],
+        index: result.index,
+        step: result[0].length
+      };
     } else {
-      throw "Token mismatch, expected " + s + ", found " + this.input.substring(this.pos);
+      return {
+        success: false
+      };
     }
-    this.skipWhitespace();
-  }
+  };
 
-  this.tryMatch = function(s) {
-    this.skipWhitespace();
-    if (this.input.substring(this.pos, this.pos+s.length) == s) {
-      return true;
-    } else {
-      return false;
-    }
-    this.skipWhitespace(); // ???.jpg
-  }
-
-  this.skipToLineEnd = function(){
-    while(this.input[this.pos] != "\n" && this.pos < this.input.length) {
-      this.pos++;
-    }
-  }
-
-  this.skipComments = function(){
-    if (
-      this.input[this.pos] == "%" ||
-      (this.config.losseComments && !this.isInEntry && this.input[this.pos] != "@")
-    ) {
-      this.skipToLineEnd();
-      this.skipWhitespace();
-    } 
-  }
-
-  this.skipWhitespace = function() {
-    if(this.pos < this.input.length) {
-      while (this.isWhitespace(this.input[this.pos])) {
-        this.pos++;
-      }
-      this.skipComments();
-    }
-  }
-
-  this.value_braces = function() {
-    var bracecount = 0;
-    this.match("{");
-    var start = this.pos;
-    while(true) {
-      if (this.input[this.pos] == '}' && this.input[this.pos-1] != '\\') {
-        if (bracecount > 0) {
-          bracecount--;
-        } else {
-          var end = this.pos;
-          this.match("}");
-          return this.input.substring(start, end);
-        }
-      } else if (this.input[this.pos] == '{') {
-        bracecount++;
-      } else if (this.pos == this.input.length-1) {
-        throw "Unterminated value";
-      }
-      this.pos++;
-    }
-  }
-
-  this.value_quotes = function() {
-    this.match('"');
-    var start = this.pos;
-    while(true) {
-      if (this.input[this.pos] == '"' && this.input[this.pos-1] != '\\') {
-          var end = this.pos;
-          this.match('"');
-          return this.input.substring(start, end);
-      } else if (this.pos == this.input.length-1) {
-        throw "Unterminated value:" + this.input.substring(start);
-      }
-      this.pos++;
-    }
-  }
-  
-  this.single_value = function() {
-    var start = this.pos;
-    if (this.tryMatch("{")) {
-      return this.value_braces();
-    } else if (this.tryMatch('"')) {
-      return this.value_quotes();
-    } else {
-      var k = this.key();
-      if (this.strings[k]) {
-        return this.strings[k];
-      } else if (k.match("^[0-9]+$")) {
-        return k;
-      } else {
-        throw "Value expected:" + this.input.substring(start);
+  this.assert = function (obj) {
+    for (var key in obj) {
+      if (obj[key] === undefined) {
+        throw "[BibParser:ERROR] ".concat(key, " not found at ").concat(this._pos);
       }
     }
-  }
-  
-  this.value = function() {
+  };
+
+  this.getValue = function () {
+    var stack = [];
     var values = [];
-    values.push(this.single_value());
-    while (this.tryMatch("#")) {
-      this.match("#");
-      values.push(this.single_value());
-    }
-    return values.join("");
-  }
 
-  this.key = function() {
-    var start = this.pos;
-    while(true) {
-      if (this.pos == this.input.length) {
-        throw "Runaway key";
-      }
-    
-      if (this.input[this.pos].match("[a-zA-Z0-9_:\\./-]")) {
-        this.pos++
+    var _this$matchFirst = this.matchFirst(regs.vLeft),
+        vLeft = _this$matchFirst.text;
+
+    this.assert({
+      vLeft: vLeft
+    });
+    stack.push(vLeft);
+
+    while (stack.length > 0) {
+      if (this.matchFirst(regs.inVLeft, true).success) {
+        var _this$matchFirst2 = this.matchFirst(regs.inVLeft),
+            inVLeft = _this$matchFirst2.text;
+
+        stack.push(inVLeft);
+        values.push(inVLeft);
+      } else if (this.matchFirst(regs.inVRight(stack[stack.length - 1]), true).success) {
+        values.push(this.matchFirst(regs.inVRight(stack[stack.length - 1])).text);
+        stack.pop();
+      } else if (this.matchFirst(regs.word, true).success) {
+        values.push(this.matchFirst(regs.word).text);
+      } else if (this.matchFirst(regs.quota, true).success) {
+        values.push(this.matchFirst(regs.quota).text);
       } else {
-        return this.config.uppperKeys ? 
-          this.input.substring(start, this.pos).toUpperCase() : this.input.substring(start, this.pos);
+        throw "[BibParser:ERROR] stack overflow at ".concat(this._pos);
       }
     }
-  }
 
-  this.key_equals_value = function() {
-    var key = this.key();
-    if (this.tryMatch("=")) {
-      this.match("=");
-      var val = this.value();
-      return [ key, val ];
-    } else {
-      throw "... = value expected, equals sign missing:" + this.input.substring(this.pos);
-    }
-  }
-
-  this.key_value_list = function() {
-    var kv = this.key_equals_value();
-    this.entries[this.currentEntry][kv[0]] = kv[1];
-    while (this.tryMatch(",")) {
-      this.match(",");
-      // fixes problems with commas at the end of a list
-      if (this.tryMatch("}")) {
-        break;
-      }
-      kv = this.key_equals_value();
-      this.entries[this.currentEntry][kv[0]] = kv[1];
-    }
-  }
-
-  this.entry_body = function(d) {
-    this.currentEntry = this.key();
-    this.entries[this.currentEntry] = { entryType: d.substring(1) };
-    this.match(",");
-    this.key_value_list();
-  }
-
-  this.directive = function () {
-    this.match("@");
-    return "@"+this.key();
-  }
+    values.pop();
+    this.matchFirst(regs.comma);
+    return values;
+  };
 
   this.string = function () {
-    var kv = this.key_equals_value();
-    if(this.config.uppperKeys){
-      this.strings[kv[0].toUpperCase()] = kv[1];
-    } else {
-      this.strings[kv[0]] = kv[1];
+    var _this$matchFirst3 = this.matchFirst(regs.key),
+        key = _this$matchFirst3.text;
+
+    this.assert({
+      key: key
+    });
+
+    var _this$matchFirst4 = this.matchFirst(regs.value),
+        value = _this$matchFirst4.text;
+
+    this.assert({
+      value: value
+    });
+    this._strings[key] = value;
+  };
+
+  this.preamble = function () {};
+
+  this.comment = function () {};
+
+  this.entry = function (head) {
+    var _this$matchFirst5 = this.matchFirst(regs.entryId),
+        entryId = _this$matchFirst5.text;
+
+    this.assert({
+      entryId: entryId
+    });
+    var entry = {};
+
+    while (this.matchFirst(regs.key, true).success) {
+      var _this$matchFirst6 = this.matchFirst(regs.key),
+          key = _this$matchFirst6.text;
+
+      var value = this.getValue();
+      entry[key] = value.join(' '); // if(key === 'author'){
+      //   const {text:value} = this.matchFirst(regs.value);
+      //   this.assert({value});
+      //   entry[key] = value;
+      // } else {
+      //   const {text:value} = this.matchFirst(regs.value);
+      //   this.assert({value});
+      //   entry[key] = value;
+      // }
     }
-  }
 
-  this.preamble = function() {
-    this.value();
-  }
+    entry.$type = head;
+    this._entries[entryId] = entry;
+  };
 
-  this.comment = function() {
-    var start = this.pos;
-    while(true) {
-      if (this.pos == this.input.length) {
-        throw "Runaway comment";
-      }
-    
-      if (this.input[this.pos] != '}') {
-        this.pos++
-      } else {
-        this.comments.push(this.input.substring(start, this.pos));
-        return;
-      }
-    }
-  }
+  this.parse = function () {
+    while (this.matchFirst(regs.atKey, true).success) {
+      var _this$matchFirst7 = this.matchFirst(regs.atKey),
+          head = _this$matchFirst7.text;
 
-  this.entry = function(d) {
-    this.entry_body(d);
-  }
+      var _this$matchFirst8 = this.matchFirst(regs.enLeft),
+          enLeft = _this$matchFirst8.text;
 
-  this.bibtex = function() {
-    while(this.tryMatch("@")) {
-      this.isInEntry = true;
-      var d = this.config.uppperKeys ? this.directive().toUpperCase() : this.directive();
-      this.match("{");
-      if (d == "@STRING") {
+      this.assert({
+        enLeft: enLeft
+      });
+
+      if (head.toUpperCase() == 'STRING') {
         this.string();
-      } else if (d == "@PREAMBLE") {
+      } else if (head.toUpperCase() == 'PREAMBLE') {
         this.preamble();
-      } else if (d == "@COMMENT") {
+      } else if (head.toUpperCase() == 'COMMENT') {
         this.comment();
       } else {
-        this.entry(d);
+        this.entry(head);
       }
-      this.match("}");
-      this.isInEntry = false;
+
+      var _this$matchFirst9 = this.matchFirst(regs.enRight(enLeft)),
+          enRight = _this$matchFirst9.text;
+
+      this.assert({
+        enRight: enRight
+      });
     }
-    this.entries['@comments'] = this.comments;
-  }
-}
+  };
+} //Runs the parser
 
-//Runs the parser
+
 function doParse(input) {
-  var b = new BibtexParser()
-  b.setInput(input)
-  b.bibtex()
-  return b.entries
+  var b = new BibtexParser();
+  b.setInput(input);
+  b.parse();
+  return b._entries;
 }
 
-module.exports = doParse
+module.exports = doParse;
