@@ -53,7 +53,6 @@ export const handleOutputFiles = async (projectId, data) => {
   }
 
   result.logEntries = {
-    all: [],
     errors: [],
     warnings: [],
     typesetting: [],
@@ -72,7 +71,6 @@ export const handleOutputFiles = async (projectId, data) => {
           entry.key = `${entry.file}:${entry.line}:${entry.column}:${entry.message}`
         }
         result.logEntries[key].push(...newEntries[key])
-        result.logEntries.all.push(...newEntries[key])
       }
     }
   }
@@ -104,12 +102,21 @@ export const handleOutputFiles = async (projectId, data) => {
 
     const log = await response.text()
 
-    const { errors, warnings } = new BibLogParser(log, {}).parse()
-
-    accumulateResults({ errors, warnings }, 'BibTeX:')
+    try {
+      const { errors, warnings } = new BibLogParser(log, {}).parse()
+      accumulateResults({ errors, warnings }, 'BibTeX:')
+    } catch (e) {
+      // BibLog parsing errors are ignored
+    }
   }
 
   result.fileList = buildFileList(outputFiles, data.clsiServerId)
+
+  result.logEntries.all = [
+    ...result.logEntries.errors,
+    ...result.logEntries.warnings,
+    ...result.logEntries.typesetting,
+  ]
 
   return result
 }

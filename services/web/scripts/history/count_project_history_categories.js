@@ -1,7 +1,8 @@
 const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
 const VERBOSE_PROJECT_NAMES = process.env.VERBOSE_PROJECT_NAMES === 'true'
-const WRITE_CONCURRENCY = parseInt(process.env.WRITE_CONCURRENCY, 10) || 5
-const BATCH_SIZE = parseInt(process.env.BATCH_SIZE, 10) || 100
+const WRITE_CONCURRENCY = parseInt(process.env.WRITE_CONCURRENCY, 10) || 50
+const BATCH_SIZE = parseInt(process.env.BATCH_SIZE, 10) || 500
+const USE_QUERY_HINT = process.env.USE_QUERY_HINT !== 'false'
 // persist fallback in order to keep batchedUpdate in-sync
 process.env.BATCH_SIZE = BATCH_SIZE
 // raise mongo timeout to 1hr if otherwise unspecified
@@ -21,6 +22,7 @@ const COUNT = {
   NoneWithConversion: 0,
   NoneWithTemporaryHistory: 0,
   HistoryUpgradeFailed: 0,
+  HistoryConversionFailed: 0,
 }
 
 // Timestamp of when 'Enable history for SL in background' release
@@ -36,21 +38,9 @@ async function processBatch(_, projects) {
 }
 
 async function processProject(project) {
-  if (
-    project.overleaf &&
-    project.overleaf.history &&
-    project.overleaf.history.upgradeFailed
-  ) {
-    // a failed history upgrade might look like a v1 project, but history may be broken
-    COUNT.HistoryUpgradeFailed += 1
-    return
-  }
-  if (
-    project.overleaf &&
-    project.overleaf.history &&
-    project.overleaf.history.id
-  ) {
+  if (project.overleaf && project.overleaf.history) {
     if (project.overleaf.history.upgradeFailed) {
+      // a failed history upgrade might look like a v1 project, but history may be broken
       COUNT.HistoryUpgradeFailed += 1
       if (VERBOSE_LOGGING) {
         console.log(
@@ -59,7 +49,25 @@ async function processProject(project) {
           } has a history upgrade failure recorded`
         )
       }
-    } else if (project.overleaf.history.display) {
+      return
+    } else if (project.overleaf.history.conversionFailed) {
+      COUNT.HistoryConversionFailed += 1
+      if (VERBOSE_LOGGING) {
+        console.log(
+          `project ${
+            project[VERBOSE_PROJECT_NAMES ? 'name' : '_id']
+          } has a history conversion failure recorded`
+        )
+      }
+      return
+    }
+  }
+  if (
+    project.overleaf &&
+    project.overleaf.history &&
+    project.overleaf.history.id
+  ) {
+    if (project.overleaf.history.display) {
       // v2: full project history, do nothing, (query shoudln't include any, but we should stlll check?)
       COUNT.v2 += 1
       if (VERBOSE_LOGGING) {
@@ -231,8 +239,9 @@ async function main() {
     _id: 1,
     overleaf: 1,
   }
-  const options = {
-    hint: { _id: 1 },
+  const options = {}
+  if (USE_QUERY_HINT) {
+    options.hint = { _id: 1 }
   }
   if (VERBOSE_PROJECT_NAMES) {
     projection.name = 1

@@ -2,6 +2,7 @@ const UserGetter = require('../User/UserGetter')
 const UserUpdater = require('../User/UserUpdater')
 const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const UserAnalyticsIdCache = require('../Analytics/UserAnalyticsIdCache')
+const LocalsHelper = require('./LocalsHelper')
 const crypto = require('crypto')
 const _ = require('lodash')
 const { callbackify } = require('util')
@@ -78,14 +79,33 @@ async function getAssignmentForSession(session, splitTestName, options) {
   return _getAssignment(analyticsId, userId, session, splitTestName, options)
 }
 
+/**
+ * Get the assignment of a user to a split test by their ID and stores it in the locals context.
+ *
+ * @param res the Express response object
+ * @param userId the user ID
+ * @param splitTestName the unique name of the split test
+ * @param options {Object<sync: boolean>} - for test purposes only, to force the synchronous update of the user's profile
+ * @returns {Promise<void>}
+ */
 async function assignInLocalsContext(res, userId, splitTestName, options) {
   const assignment = await getAssignment(userId, splitTestName, options)
-  if (!res.locals.splitTestVariants) {
-    res.locals.splitTestVariants = {}
-  }
-  res.locals.splitTestVariants[splitTestName] = assignment.variant
+  LocalsHelper.setSplitTestVariant(
+    res.locals,
+    splitTestName,
+    assignment.variant
+  )
 }
 
+/**
+ * Get the assignment of a user to a split test by their session and stores it in the locals context.
+ *
+ * @param res the Express response object
+ * @param session the request session
+ * @param splitTestName the unique name of the split test
+ * @param options {Object<sync: boolean>} - for test purposes only, to force the synchronous update of the user's profile
+ * @returns {Promise<void>}
+ */
 async function assignInLocalsContextForSession(
   res,
   session,
@@ -97,10 +117,11 @@ async function assignInLocalsContextForSession(
     splitTestName,
     options
   )
-  if (!res.locals.splitTestVariants) {
-    res.locals.splitTestVariants = {}
-  }
-  res.locals.splitTestVariants[splitTestName] = assignment.variant
+  LocalsHelper.setSplitTestVariant(
+    res.locals,
+    splitTestName,
+    assignment.variant
+  )
 }
 
 async function _getAssignment(
