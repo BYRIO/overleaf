@@ -31,7 +31,7 @@ function BibtexParser() {
     enRight: function enRight(left) {
       return new RegExp("^(\\".concat(pairs[left], ")\\s*"));
     },
-    entryId: /^\s*([a-zA-Z0-9_:\\./-]+)\s*,\s*/,
+    entryId: /^\s*([^@={}",\s]+)\s*,\s*/,
     key: /^([a-zA-Z0-9_:\\./-]+)\s*=\s*/,
     vLeft: /^([\{"])\s*/,
     vRight: function vRight(left) {
