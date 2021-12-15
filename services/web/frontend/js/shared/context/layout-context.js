@@ -7,15 +7,22 @@ import {
 } from 'react'
 import PropTypes from 'prop-types'
 import useScopeValue from '../hooks/use-scope-value'
-import usePreviousValue from '../hooks/use-previous-value'
 import useDetachLayout from '../hooks/use-detach-layout'
 import { useIdeContext } from './ide-context'
 import localStorage from '../../infrastructure/local-storage'
+import getMeta from '../../utils/meta'
+
+const debugPdfDetach = getMeta('ol-debugPdfDetach')
 
 export const LayoutContext = createContext()
 
 LayoutContext.Provider.propTypes = {
   value: PropTypes.shape({
+    reattach: PropTypes.func.isRequired,
+    detach: PropTypes.func.isRequired,
+    detachIsLinked: PropTypes.bool,
+    detachRole: PropTypes.string,
+    changeLayout: PropTypes.func.isRequired,
     view: PropTypes.string,
     setView: PropTypes.func.isRequired,
     chatIsOpen: PropTypes.bool,
@@ -26,6 +33,13 @@ LayoutContext.Provider.propTypes = {
     setLeftMenuShown: PropTypes.func.isRequired,
     pdfLayout: PropTypes.oneOf(['sideBySide', 'flat']).isRequired,
   }).isRequired,
+}
+
+function setLayoutInLocalStorage(pdfLayout) {
+  localStorage.setItem(
+    'pdf.layout',
+    pdfLayout === 'sideBySide' ? 'split' : 'flat'
+  )
 }
 
 export function LayoutProvider({ children }) {
@@ -68,7 +82,7 @@ export function LayoutProvider({ children }) {
       const newLayout = layout === 'sideBySide' ? 'flat' : 'sideBySide'
       setView(newLayout === 'sideBySide' ? 'editor' : 'pdf')
       setPdfLayout(newLayout)
-      localStorage.setItem('pdf.layout', newLayout)
+      setLayoutInLocalStorage(newLayout)
     })
   }, [setPdfLayout, setView])
 
@@ -76,7 +90,7 @@ export function LayoutProvider({ children }) {
     (newLayout, newView) => {
       setPdfLayout(newLayout)
       setView(newLayout === 'sideBySide' ? 'editor' : newView)
-      localStorage.setItem('pdf.layout', newLayout)
+      setLayoutInLocalStorage(newLayout)
     },
     [setPdfLayout, setView]
   )
@@ -84,36 +98,34 @@ export function LayoutProvider({ children }) {
   const {
     reattach,
     detach,
-    mode: detachMode,
+    isLinking: detachIsLinking,
+    isLinked: detachIsLinked,
     role: detachRole,
   } = useDetachLayout()
-  const previousDetachMode = usePreviousValue(detachMode)
 
   useEffect(() => {
-    switch (detachMode) {
-      case 'detacher':
-        changeLayout('flat', 'editor')
-        break
-      case 'detaching':
-        changeLayout('flat', 'editor')
-        break
-      case 'detached':
-        break
-      case 'orphan':
-        break
-      case null:
-        if (previousDetachMode) {
-          changeLayout('sideBySide')
-        }
-        break
+    if (debugPdfDetach) {
+      console.log('Layout Effect', {
+        detachRole,
+        detachIsLinking,
+        detachIsLinked,
+      })
     }
-  }, [detachMode, previousDetachMode, changeLayout])
+
+    if (detachRole !== 'detacher') return // not in a PDF detacher layout
+
+    if (detachIsLinking || detachIsLinked) {
+      // the tab is linked to a detached tab (or about to be linked); show
+      // editor only
+      changeLayout('flat', 'editor')
+    }
+  }, [detachRole, detachIsLinking, detachIsLinked, changeLayout])
 
   const value = useMemo(
     () => ({
       reattach,
       detach,
-      detachMode,
+      detachIsLinked,
       detachRole,
       changeLayout,
       chatIsOpen,
@@ -131,7 +143,7 @@ export function LayoutProvider({ children }) {
     [
       reattach,
       detach,
-      detachMode,
+      detachIsLinked,
       detachRole,
       changeLayout,
       chatIsOpen,

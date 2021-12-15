@@ -611,6 +611,12 @@ const ProjectController = {
                 : undefined
           }
 
+          // null test targeting logged in users
+          SplitTestV2Handler.promises.getAssignmentForSession(
+            req.session,
+            'null-test-dashboard'
+          )
+
           res.render('project/list', viewModel)
           timer.done()
         })
@@ -724,12 +730,27 @@ const ProjectController = {
           TpdsProjectFlusher.flushProjectToTpdsIfNeeded(projectId, cb)
         },
         sharingModalSplitTest(cb) {
-          SplitTestV2Handler.assignInLocalsContext(
+          SplitTestV2Handler.assignInLocalsContextForSession(
             res,
-            userId,
+            req.session,
             'project-share-modal-paywall',
-            err => {
-              cb(err, null)
+            {},
+            () => {
+              // do not fail editor load if assignment fails
+              cb()
+            }
+          )
+        },
+        sharingModalNullTest(cb) {
+          // null test targeting logged in users, for front-end side
+          SplitTestV2Handler.assignInLocalsContextForSession(
+            res,
+            req.session,
+            'null-test-share-modal',
+            {},
+            () => {
+              // do not fail editor load if assignment fails
+              cb()
             }
           )
         },
@@ -737,8 +758,14 @@ const ProjectController = {
           SplitTestV2Handler.getAssignmentForSession(
             req.session,
             'react-pdf-preview-rollout',
-            (err, assignment) => {
-              cb(err, assignment)
+            {},
+            (error, assignment) => {
+              if (error) {
+                // do not fail editor load if assignment fails
+                cb(null, { variant: 'default' })
+              } else {
+                cb(null, assignment)
+              }
             }
           )
         },
@@ -843,11 +870,6 @@ const ProjectController = {
               newPdfPreviewAssignment.variant === 'react-pdf-preview'
             )
 
-            let disableAngularRouter = shouldDisplayFeature(
-              'disable_angular_router',
-              user.alphaProgram
-            )
-
             const showPdfDetach = shouldDisplayFeature(
               'pdf_detach',
               user.alphaProgram
@@ -858,7 +880,6 @@ const ProjectController = {
             let detachRole = null
 
             if (showPdfDetach) {
-              disableAngularRouter = true
               showNewPdfPreview = true
               detachRole = req.params.detachRole
             }
@@ -924,14 +945,9 @@ const ProjectController = {
               showPdfDetach,
               debugPdfDetach,
               showNewPdfPreview,
-              disableAngularRouter,
               showNewSourceEditor: shouldDisplayFeature(
                 'new_source_editor',
                 false
-              ),
-              showSymbolPalette: shouldDisplayFeature(
-                'symbol_palette',
-                user.alphaProgram || user.betaProgram
               ),
               trackPdfDownload: partOfPdfCachingRollout('collect-metrics'),
               enablePdfCaching: partOfPdfCachingRollout('enable-caching'),

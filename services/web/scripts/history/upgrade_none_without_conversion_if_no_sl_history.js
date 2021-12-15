@@ -1,8 +1,10 @@
-const SCRIPT_VERSION = 1
+const SCRIPT_VERSION = 2
 const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
 const WRITE_CONCURRENCY = parseInt(process.env.WRITE_CONCURRENCY, 10) || 10
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE, 10) || 100
 const DRY_RUN = process.env.DRY_RUN !== 'false'
+const USE_QUERY_HINT = process.env.USE_QUERY_HINT !== 'false'
+const RETRY_FAILED = process.env.RETRY_FAILED === 'true'
 const MAX_UPGRADES_TO_ATTEMPT =
   parseInt(process.env.MAX_UPGRADES_TO_ATTEMPT, 10) || false
 const MAX_FAILURES = parseInt(process.env.MAX_FAILURES, 10) || 50
@@ -26,6 +28,8 @@ console.log({
   BATCH_SIZE,
   MAX_UPGRADES_TO_ATTEMPT,
   MAX_FAILURES,
+  USE_QUERY_HINT,
+  RETRY_FAILED,
 })
 
 const RESULT = {
@@ -33,11 +37,22 @@ const RESULT = {
   attempted: 0,
   projectsUpgraded: 0,
   failed: 0,
+  continueFrom: null,
 }
 
 let INTERRUPT = false
 
 async function processBatch(_, projects) {
+  if (projects.length && projects[0]._id) {
+    RESULT.continueFrom = projects[0]._id
+  }
+  await promiseMapWithLimit(WRITE_CONCURRENCY, projects, processProject)
+  console.log(RESULT)
+  if (INTERRUPT) {
+    // ctrl+c
+    console.log('Terminated by SIGINT')
+    process.exit(0)
+  }
   if (RESULT.failed >= MAX_FAILURES) {
     console.log(`MAX_FAILURES limit (${MAX_FAILURES}) reached. Stopping.`)
     process.exit(0)
@@ -47,20 +62,21 @@ async function processBatch(_, projects) {
       `MAX_UPGRADES_TO_ATTEMPT limit (${MAX_UPGRADES_TO_ATTEMPT}) reached. Stopping.`
     )
     process.exit(0)
-  } else {
-    await promiseMapWithLimit(WRITE_CONCURRENCY, projects, processProject)
-    console.log(RESULT)
-    if (INTERRUPT) {
-      // ctrl+c
-      console.log('Terminated by SIGINT')
-      process.exit(0)
-    }
   }
 }
 
 async function processProject(project) {
   if (INTERRUPT) {
     return
+  }
+  if (!RETRY_FAILED) {
+    if (
+      project.overleaf &&
+      project.overleaf.history &&
+      project.overleaf.history.upgradeFailed
+    ) {
+      return
+    }
   }
   const anyDocHistory = await anyDocHistoryExists(project)
   if (anyDocHistory) {
@@ -93,21 +109,20 @@ async function doUpgradeForNoneWithoutConversion(project) {
       const historyId = await ProjectHistoryHandler.promises.getHistoryId(
         projectId
       )
-      if (historyId != null) {
-        return
+      if (!historyId) {
+        const history = await HistoryManager.promises.initializeProject()
+        if (history && history.overleaf_id) {
+          await ProjectHistoryHandler.promises.setHistoryId(
+            projectId,
+            history.overleaf_id
+          )
+        }
       }
-      const history = await HistoryManager.promises.initializeProject()
-      if (history && history.overleaf_id) {
-        await ProjectHistoryHandler.promises.setHistoryId(
-          projectId,
-          history.overleaf_id
-        )
-        await HistoryManager.promises.resyncProject(projectId, {
-          force: true,
-          origin: { kind: 'history-migration' },
-        })
-        await HistoryManager.promises.flushProject(projectId)
-      }
+      await HistoryManager.promises.resyncProject(projectId, {
+        force: true,
+        origin: { kind: 'history-migration' },
+      })
+      await HistoryManager.promises.flushProject(projectId)
     } catch (err) {
       RESULT.failed += 1
       console.error(`project ${project._id} FAILED with error: `, err)
@@ -128,6 +143,9 @@ async function doUpgradeForNoneWithoutConversion(project) {
           'overleaf.history.display': true,
           'overleaf.history.upgradedAt': new Date(),
           'overleaf.history.upgradeReason': `none-without-sl-history/${SCRIPT_VERSION}`,
+        },
+        $unset: {
+          'overleaf.history.upgradeFailed': true,
         },
       }
     )
@@ -163,8 +181,9 @@ async function main() {
     _id: 1,
     overleaf: 1,
   }
-  const options = {
-    hint: { _id: 1 },
+  const options = {}
+  if (USE_QUERY_HINT) {
+    options.hint = { _id: 1 }
   }
   await batchedUpdate(
     'projects',
