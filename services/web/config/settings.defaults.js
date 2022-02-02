@@ -219,6 +219,13 @@ module.exports = {
       url: `http://${process.env.WEBPACK_HOST || 'localhost'}:3808`,
     },
 
+    haveIBeenPwned: {
+      enabled: process.env.HAVE_I_BEEN_PWNED_ENABLED === 'true',
+      url:
+        process.env.HAVE_I_BEEN_PWNED_URL || 'https://api.pwnedpasswords.com',
+      timeout: parseInt(process.env.HAVE_I_BEEN_PWNED_TIMEOUT, 10) || 5 * 1000,
+    },
+
     // For legacy reasons, we need to populate the below objects.
     v1: {},
     recurly: {},
@@ -315,7 +322,7 @@ module.exports = {
     {
       planCode: 'personal',
       name: 'Personal',
-      price: 0,
+      price_in_cents: 0,
       features: defaultFeatures,
     },
   ],
@@ -429,6 +436,19 @@ module.exports = {
       // Bcrypt does not support longer passwords than that.
       max: 72,
     },
+  },
+
+  elevateAccountSecurityAfterFailedLogin:
+    parseInt(process.env.ELEVATED_ACCOUNT_SECURITY_AFTER_FAILED_LOGIN_MS, 10) ||
+    24 * 60 * 60 * 1000,
+
+  deviceHistory: {
+    cookieName: process.env.DEVICE_HISTORY_COOKIE_NAME || 'deviceHistory',
+    entryExpiry:
+      parseInt(process.env.DEVICE_HISTORY_ENTRY_EXPIRY_MS, 10) ||
+      30 * 24 * 60 * 60 * 1000,
+    maxEntries: parseInt(process.env.DEVICE_HISTORY_MAX_ENTRIES, 10) || 10,
+    secret: process.env.DEVICE_HISTORY_SECRET,
   },
 
   // Email support
@@ -578,7 +598,7 @@ module.exports = {
 
     right_footer: [
       {
-        text: "<i class='fa fa-github-square'></i> Fork on Github!",
+        text: "<i class='fa fa-github-square'></i> Fork on GitHub!",
         url: 'https://github.com/overleaf/overleaf',
       },
     ],
@@ -591,6 +611,9 @@ module.exports = {
   //   header_extras: [{text: "Some Page", url: "http://example.com/some/page", class: "subdued"}]
 
   recaptcha: {
+    endpoint:
+      process.env.RECAPTCHA_ENDPOINT ||
+      'https://www.google.com/recaptcha/api/siteverify',
     disabled: {
       invite: true,
       login: true,
@@ -741,6 +764,8 @@ module.exports = {
     tprLinkedFileRefreshError: [],
     contactUsModal: [],
     editorToolbarButtons: [],
+    sourceEditorExtensions: [],
+    sourceEditorComponents: [],
   },
 
   moduleImportSequence: ['launchpad', 'server-ce-scripts', 'user-activate'],

@@ -2,7 +2,6 @@ import PropTypes from 'prop-types'
 
 import { FileTreeMainProvider } from '../contexts/file-tree-main'
 import { FileTreeActionableProvider } from '../contexts/file-tree-actionable'
-import { FileTreeMutableProvider } from '../contexts/file-tree-mutable'
 import { FileTreeSelectableProvider } from '../contexts/file-tree-selectable'
 import { FileTreeDraggableProvider } from '../contexts/file-tree-draggable'
 
@@ -12,11 +11,6 @@ import { FileTreeDraggableProvider } from '../contexts/file-tree-draggable'
 // FileTreeMutable: provides entities mutation operations
 // FileTreeSelectable: handles selection and multi-selection
 function FileTreeContext({
-  projectId,
-  rootFolder,
-  hasWritePermissions,
-  rootDocId,
-  userHasFeature,
   refProviders,
   reindexReferences,
   setRefProviderEnabled,
@@ -26,39 +20,25 @@ function FileTreeContext({
 }) {
   return (
     <FileTreeMainProvider
-      projectId={projectId}
-      hasWritePermissions={hasWritePermissions}
-      userHasFeature={userHasFeature}
       refProviders={refProviders}
       setRefProviderEnabled={setRefProviderEnabled}
       setStartedFreeTrial={setStartedFreeTrial}
       reindexReferences={reindexReferences}
     >
-      <FileTreeMutableProvider rootFolder={rootFolder}>
-        <FileTreeSelectableProvider
-          hasWritePermissions={hasWritePermissions}
-          rootDocId={rootDocId}
-          onSelect={onSelect}
-        >
-          <FileTreeActionableProvider hasWritePermissions={hasWritePermissions}>
-            <FileTreeDraggableProvider>{children}</FileTreeDraggableProvider>
-          </FileTreeActionableProvider>
-        </FileTreeSelectableProvider>
-      </FileTreeMutableProvider>
+      <FileTreeSelectableProvider onSelect={onSelect}>
+        <FileTreeActionableProvider>
+          <FileTreeDraggableProvider>{children}</FileTreeDraggableProvider>
+        </FileTreeActionableProvider>
+      </FileTreeSelectableProvider>
     </FileTreeMainProvider>
   )
 }
 
 FileTreeContext.propTypes = {
-  projectId: PropTypes.string.isRequired,
-  rootFolder: PropTypes.array.isRequired,
-  hasWritePermissions: PropTypes.bool.isRequired,
-  userHasFeature: PropTypes.func.isRequired,
   reindexReferences: PropTypes.func.isRequired,
   refProviders: PropTypes.object.isRequired,
   setRefProviderEnabled: PropTypes.func.isRequired,
   setStartedFreeTrial: PropTypes.func.isRequired,
-  rootDocId: PropTypes.string,
   onSelect: PropTypes.func.isRequired,
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.node),

@@ -2,6 +2,7 @@
 /* eslint-disable react/prop-types */
 
 import { render } from '@testing-library/react'
+import { renderHook } from '@testing-library/react-hooks'
 import sinon from 'sinon'
 import { UserProvider } from '../../../frontend/js/shared/context/user-context'
 import { EditorProvider } from '../../../frontend/js/shared/context/editor-context'
@@ -13,6 +14,7 @@ import { get } from 'lodash'
 import { ProjectProvider } from '../../../frontend/js/shared/context/project-context'
 import { SplitTestProvider } from '../../../frontend/js/shared/context/split-test-context'
 import { CompileProvider } from '../../../frontend/js/shared/context/compile-context'
+import { FileTreeDataProvider } from '../../../frontend/js/shared/context/file-tree-data-context'
 
 // these constants can be imported in tests instead of
 // using magic strings
@@ -22,6 +24,7 @@ export const PROJECT_NAME = 'project-name'
 export function EditorProviders({
   user = { id: '123abd', email: 'testuser@example.com' },
   projectId = PROJECT_ID,
+  rootDocId = '_root_doc_id',
   socket = {
     on: sinon.stub(),
     removeListener: sinon.stub(),
@@ -29,9 +32,32 @@ export function EditorProviders({
   isRestrictedTokenMember = false,
   clsiServerId = '1234',
   scope,
+  features = {
+    referencesSearch: true,
+  },
+  permissionsLevel = 'owner',
   children,
-  rootFolder,
+  rootFolder = [
+    {
+      _id: 'root-folder-id',
+      name: 'rootFolder',
+      docs: [],
+      folders: [],
+      fileRefs: [],
+    },
+  ],
   ui = { view: null, pdfLayout: 'flat', chatOpen: true },
+  fileTreeManager = {
+    findEntityById: () => null,
+    findEntityByPath: () => null,
+    getEntityPath: () => '',
+    getRootDocDirname: () => '',
+  },
+  editorManager = {
+    getCurrentDocId: () => 'foo',
+    getCurrentDocValue: () => {},
+    openDoc: sinon.stub(),
+  },
 }) {
   window.user = user || window.user
   window.gitBridgePublicBaseUrl = 'git.overleaf.test'
@@ -47,10 +73,9 @@ export function EditorProviders({
         _id: '124abd',
         email: 'owner@example.com',
       },
-      rootDoc_id: '_root_doc_id',
-    },
-    rootFolder: rootFolder || {
-      children: [],
+      features,
+      rootDoc_id: rootDocId,
+      rootFolder,
     },
     ui,
     $watch: (path, callback) => {
@@ -59,20 +84,8 @@ export function EditorProviders({
     },
     $applyAsync: sinon.stub(),
     toggleHistory: sinon.stub(),
+    permissionsLevel,
     ...scope,
-  }
-
-  const fileTreeManager = {
-    findEntityById: () => null,
-    findEntityByPath: () => null,
-    getEntityPath: () => '',
-    getRootDocDirname: () => '',
-  }
-
-  const editorManager = {
-    getCurrentDocId: () => 'foo',
-    getCurrentDocValue: () => {},
-    openDoc: sinon.stub(),
   }
 
   const metadataManager = {
@@ -97,13 +110,15 @@ export function EditorProviders({
       <IdeProvider ide={window._ide}>
         <UserProvider>
           <ProjectProvider>
-            <EditorProvider settings={{}}>
-              <DetachProvider>
-                <LayoutProvider>
-                  <CompileProvider>{children}</CompileProvider>
-                </LayoutProvider>
-              </DetachProvider>
-            </EditorProvider>
+            <FileTreeDataProvider>
+              <EditorProvider settings={{}}>
+                <DetachProvider>
+                  <LayoutProvider>
+                    <CompileProvider>{children}</CompileProvider>
+                  </LayoutProvider>
+                </DetachProvider>
+              </EditorProvider>
+            </FileTreeDataProvider>
           </ProjectProvider>
         </UserProvider>
       </IdeProvider>
@@ -111,12 +126,27 @@ export function EditorProviders({
   )
 }
 
-export function renderWithEditorContext(component, contextProps) {
+export function renderWithEditorContext(
+  component,
+  contextProps,
+  renderOptions = {}
+) {
   const EditorProvidersWrapper = ({ children }) => (
     <EditorProviders {...contextProps}>{children}</EditorProviders>
   )
 
-  return render(component, { wrapper: EditorProvidersWrapper })
+  return render(component, {
+    wrapper: EditorProvidersWrapper,
+    ...renderOptions,
+  })
+}
+
+export function renderHookWithEditorContext(hook, contextProps) {
+  const EditorProvidersWrapper = ({ children }) => (
+    <EditorProviders {...contextProps}>{children}</EditorProviders>
+  )
+
+  return renderHook(hook, { wrapper: EditorProvidersWrapper })
 }
 
 export function ChatProviders({ children, ...props }) {

@@ -663,7 +663,7 @@ export default Document = (function () {
           op,
         })
         this.trigger('op:timeout')
-        return this._onError(new Error('op timed out'), { op })
+        return this._onError(new Error('op timed out'))
       })
       this.doc.on('flush', (inflightOp, pendingOp, version) => {
         return this.ide.pushEvent('flush', {
@@ -700,22 +700,6 @@ export default Document = (function () {
       if (error.message === 'no project_id found on client') {
         sl_console.log('ignoring error, will wait to join project')
         return
-      }
-      if (typeof ga === 'function') {
-        // sanitise the error message before sending (the "delete component"
-        // error in public/js/libs/sharejs.js includes the some document
-        // content).
-        let message = error.message
-        if (/^Delete component/.test(message)) {
-          message = 'Delete component does not match deleted text'
-        }
-        ga(
-          'send',
-          'event',
-          'error',
-          'shareJsError',
-          `${message} - ${this.ide.socket.socket.transport.name}`
-        )
       }
       if (this.doc != null) {
         this.doc.clearInflightAndPendingOps()

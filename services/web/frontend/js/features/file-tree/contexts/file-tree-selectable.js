@@ -9,11 +9,14 @@ import {
 } from 'react'
 import PropTypes from 'prop-types'
 import classNames from 'classnames'
+import _ from 'lodash'
 
 import { findInTree } from '../util/find-in-tree'
-import { useFileTreeMutable } from './file-tree-mutable'
-import { useFileTreeMainContext } from './file-tree-main'
+import { useFileTreeData } from '../../../shared/context/file-tree-data-context'
+import { useProjectContext } from '../../../shared/context/project-context'
+import { useEditorContext } from '../../../shared/context/editor-context'
 import usePersistedState from '../../../shared/hooks/use-persisted-state'
+import usePreviousValue from '../../../shared/hooks/use-previous-value'
 
 const FileTreeSelectableContext = createContext()
 
@@ -71,25 +74,23 @@ function fileTreeSelectableReadOnlyReducer(selectedEntityIds, action) {
   }
 }
 
-export function FileTreeSelectableProvider({
-  hasWritePermissions,
-  rootDocId,
-  onSelect,
-  children,
-}) {
-  const { projectId } = useFileTreeMainContext()
+export function FileTreeSelectableProvider({ onSelect, children }) {
+  const { _id: projectId, rootDocId } = useProjectContext(
+    projectContextPropTypes
+  )
+  const { permissionsLevel } = useEditorContext(editorContextPropTypes)
 
   const [initialSelectedEntityId] = usePersistedState(
     `doc.open_id.${projectId}`,
     rootDocId
   )
 
-  const { fileTreeData } = useFileTreeMutable()
+  const { fileTreeData } = useFileTreeData()
 
   const [selectedEntityIds, dispatch] = useReducer(
-    hasWritePermissions
-      ? fileTreeSelectableReadWriteReducer
-      : fileTreeSelectableReadOnlyReducer,
+    permissionsLevel === 'readOnly'
+      ? fileTreeSelectableReadOnlyReducer
+      : fileTreeSelectableReadWriteReducer,
     null,
     () => {
       if (!initialSelectedEntityId) return new Set()
@@ -122,12 +123,16 @@ export function FileTreeSelectableProvider({
   }, [fileTreeData, selectedEntityIds])
 
   // calls `onSelect` on entities selection
+  const previousSelectedEntityIds = usePreviousValue(selectedEntityIds)
   useEffect(() => {
+    if (_.isEqual(selectedEntityIds, previousSelectedEntityIds)) {
+      return
+    }
     const selectedEntities = Array.from(selectedEntityIds)
       .map(id => findInTree(fileTreeData, id))
       .filter(Boolean)
     onSelect(selectedEntities)
-  }, [fileTreeData, selectedEntityIds, onSelect])
+  }, [fileTreeData, selectedEntityIds, previousSelectedEntityIds, onSelect])
 
   useEffect(() => {
     // listen for `editor.openDoc` and selected that doc
@@ -173,8 +178,6 @@ export function FileTreeSelectableProvider({
 }
 
 FileTreeSelectableProvider.propTypes = {
-  hasWritePermissions: PropTypes.bool.isRequired,
-  rootDocId: PropTypes.string,
   onSelect: PropTypes.func.isRequired,
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.node),
@@ -182,6 +185,14 @@ FileTreeSelectableProvider.propTypes = {
   ]).isRequired,
 }
 
+const projectContextPropTypes = {
+  _id: PropTypes.string.isRequired,
+  rootDocId: PropTypes.string,
+}
+
+const editorContextPropTypes = {
+  permissionsLevel: PropTypes.oneOf(['readOnly', 'readAndWrite', 'owner']),
+}
 export function useSelectableEntity(id) {
   const { selectedEntityIds, selectOrMultiSelectEntity } = useContext(
     FileTreeSelectableContext

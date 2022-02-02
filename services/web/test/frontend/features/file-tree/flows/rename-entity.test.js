@@ -30,6 +30,7 @@ describe('FileTree Rename Entity Flow', function () {
     const rootFolder = [
       {
         _id: 'root-folder-id',
+        name: 'rootFolder',
         docs: [{ _id: '456def', name: 'a.tex' }],
         folders: [
           {
@@ -48,10 +49,6 @@ describe('FileTree Rename Entity Flow', function () {
     ]
     renderWithEditorContext(
       <FileTreeRoot
-        rootFolder={rootFolder}
-        projectId="123abc"
-        hasWritePermissions
-        userHasFeature={() => true}
         refProviders={{}}
         reindexReferences={() => null}
         setRefProviderEnabled={() => null}
@@ -60,8 +57,13 @@ describe('FileTree Rename Entity Flow', function () {
         onInit={onInit}
         isConnected
       />,
-      { socket: new MockedSocket() }
+      {
+        socket: new MockedSocket(),
+        rootFolder,
+        projectId: '123abc',
+      }
     )
+    onSelect.reset()
   })
 
   it('renames doc', function () {
@@ -76,6 +78,10 @@ describe('FileTree Rename Entity Flow', function () {
 
     const lastFetchBody = getLastFetchBody(fetchMatcher)
     expect(lastFetchBody.name).to.equal('b.tex')
+
+    // onSelect should have been called once only: when the doc was selected for
+    // rename
+    sinon.assert.calledOnce(onSelect)
   })
 
   it('renames folder', function () {

@@ -37,9 +37,10 @@ const BrandVariationsHandler = require('../BrandVariations/BrandVariationsHandle
 const UserController = require('../User/UserController')
 const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const Modules = require('../../infrastructure/Modules')
-const SplitTestV2Handler = require('../SplitTests/SplitTestV2Handler')
+const SplitTestHandler = require('../SplitTests/SplitTestHandler')
 const { getNewLogsUIVariantForUser } = require('../Helpers/NewLogsUI')
 const FeaturesUpdater = require('../Subscription/FeaturesUpdater')
+const SpellingHandler = require('../Spelling/SpellingHandler')
 
 const _ssoAvailable = (affiliation, session, linkedInstitutionIds) => {
   if (!affiliation.institution) return false
@@ -248,7 +249,7 @@ const ProjectController = {
     const { projectName } = req.body
     logger.log({ projectId, projectName }, 'cloning project')
     if (!SessionManager.isUserLoggedIn(req.session)) {
-      return res.send({ redir: '/register' })
+      return res.json({ redir: '/register' })
     }
     const currentUser = SessionManager.getSessionUser(req.session)
     const { first_name: firstName, last_name: lastName, email } = currentUser
@@ -264,7 +265,7 @@ const ProjectController = {
           })
           return next(err)
         }
-        res.send({
+        res.json({
           name: project.name,
           project_id: project._id,
           owner_ref: project.owner_ref,
@@ -305,7 +306,7 @@ const ProjectController = {
         if (err != null) {
           return next(err)
         }
-        res.send({
+        res.json({
           project_id: project._id,
           owner_ref: project.owner_ref,
           owner: {
@@ -356,23 +357,17 @@ const ProjectController = {
       if (err != null) {
         return next(err)
       }
-      ProjectEntityHandler.getAllEntitiesFromProject(
-        project,
-        (err, docs, files) => {
-          if (err != null) {
-            return next(err)
-          }
-          const entities = docs
-            .concat(files)
-            // Sort by path ascending
-            .sort((a, b) => (a.path > b.path ? 1 : a.path < b.path ? -1 : 0))
-            .map(e => ({
-              path: e.path,
-              type: e.doc != null ? 'doc' : 'file',
-            }))
-          res.json({ project_id: projectId, entities })
-        }
-      )
+      const { docs, files } =
+        ProjectEntityHandler.getAllEntitiesFromProject(project)
+      const entities = docs
+        .concat(files)
+        // Sort by path ascending
+        .sort((a, b) => (a.path > b.path ? 1 : a.path < b.path ? -1 : 0))
+        .map(e => ({
+          path: e.path,
+          type: e.doc != null ? 'doc' : 'file',
+        }))
+      res.json({ project_id: projectId, entities })
     })
   },
 
@@ -557,9 +552,8 @@ const ProjectController = {
           delete req.session.saml
         }
 
-        const portalTemplates = ProjectController._buildPortalTemplatesList(
-          userAffiliations
-        )
+        const portalTemplates =
+          ProjectController._buildPortalTemplatesList(userAffiliations)
         const projects = ProjectController._buildProjectList(
           results.projects,
           userId
@@ -593,6 +587,7 @@ const ProjectController = {
             reconfirmedViaSAML,
             zipFileSizeLimit: Settings.maxUploadSize,
             isOverleaf: !!Settings.overleaf,
+            metadata: { viewport: false },
           }
 
           const paidUser =
@@ -612,10 +607,7 @@ const ProjectController = {
           }
 
           // null test targeting logged in users
-          SplitTestV2Handler.promises.getAssignmentForSession(
-            req.session,
-            'null-test-dashboard'
-          )
+          SplitTestHandler.promises.getAssignment(req, 'null-test-dashboard')
 
           res.render('project/list', viewModel)
           timer.done()
@@ -669,6 +661,12 @@ const ProjectController = {
           if (userId == null) {
             cb(null, defaultSettingsForAnonymousUser(userId))
           } else {
+            User.updateOne(
+              { _id: ObjectId(userId) },
+              { $set: { lastActive: new Date() } },
+              {},
+              () => {}
+            )
             User.findById(
               userId,
               'email first_name last_name referal_id signUpDate featureSwitches features featuresEpoch refProviders alphaProgram betaProgram isAdmin ace',
@@ -689,6 +687,12 @@ const ProjectController = {
               }
             )
           }
+        },
+        learnedWords(cb) {
+          if (!userId) {
+            return cb(null, [])
+          }
+          SpellingHandler.getUserDictionary(userId, cb)
         },
         subscription(cb) {
           if (userId == null) {
@@ -730,9 +734,9 @@ const ProjectController = {
           TpdsProjectFlusher.flushProjectToTpdsIfNeeded(projectId, cb)
         },
         sharingModalSplitTest(cb) {
-          SplitTestV2Handler.assignInLocalsContextForSession(
+          SplitTestHandler.assignInLocalsContext(
+            req,
             res,
-            req.session,
             'project-share-modal-paywall',
             {},
             () => {
@@ -743,9 +747,9 @@ const ProjectController = {
         },
         sharingModalNullTest(cb) {
           // null test targeting logged in users, for front-end side
-          SplitTestV2Handler.assignInLocalsContextForSession(
+          SplitTestHandler.assignInLocalsContext(
+            req,
             res,
-            req.session,
             'null-test-share-modal',
             {},
             () => {
@@ -755,8 +759,8 @@ const ProjectController = {
           )
         },
         newPdfPreviewAssignment(cb) {
-          SplitTestV2Handler.getAssignmentForSession(
-            req.session,
+          SplitTestHandler.getAssignment(
+            req,
             'react-pdf-preview-rollout',
             {},
             (error, assignment) => {
@@ -775,6 +779,7 @@ const ProjectController = {
         {
           project,
           user,
+          learnedWords,
           subscription,
           isTokenMember,
           brandVariation,
@@ -789,9 +794,8 @@ const ProjectController = {
           req,
           projectId
         )
-        const allowedImageNames = ProjectHelper.getAllowedImagesForUser(
-          sessionUser
-        )
+        const allowedImageNames =
+          ProjectHelper.getAllowedImagesForUser(sessionUser)
 
         AuthorizationManager.getPrivilegeLevelForProject(
           userId,
@@ -926,6 +930,7 @@ const ProjectController = {
                 isTokenMember
               ),
               languages: Settings.languages,
+              learnedWords,
               editorThemes: THEME_LIST,
               maxDocLength: Settings.max_doc_length,
               useV2History:
@@ -955,6 +960,7 @@ const ProjectController = {
                 Boolean(Settings.resetServiceWorker) &&
                 !shouldDisplayFeature('enable_pdf_caching', false),
               detachRole,
+              metadata: { viewport: false },
             })
             timer.done()
           }
@@ -1018,13 +1024,8 @@ const ProjectController = {
 
   _buildProjectList(allProjects, userId) {
     let project
-    const {
-      owned,
-      readAndWrite,
-      readOnly,
-      tokenReadAndWrite,
-      tokenReadOnly,
-    } = allProjects
+    const { owned, readAndWrite, readOnly, tokenReadAndWrite, tokenReadOnly } =
+      allProjects
     const projects = []
     for (project of owned) {
       projects.push(

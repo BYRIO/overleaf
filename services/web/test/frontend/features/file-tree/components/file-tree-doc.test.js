@@ -21,6 +21,8 @@ describe('<FileTreeDoc/>', function () {
         contextProps: {
           rootFolder: [
             {
+              _id: 'root-folder-id',
+              name: 'rootFolder',
               docs: [{ _id: '123abc' }],
               fileRefs: [],
               folders: [],
@@ -50,6 +52,8 @@ describe('<FileTreeDoc/>', function () {
       contextProps: {
         rootFolder: [
           {
+            _id: 'root-folder-id',
+            name: 'rootFolder',
             docs: [{ _id: '123abc' }],
             fileRefs: [],
             folders: [],
@@ -69,6 +73,8 @@ describe('<FileTreeDoc/>', function () {
       contextProps: {
         rootFolder: [
           {
+            _id: 'root-folder-id',
+            name: 'rootFolder',
             docs: [{ _id: '123abc' }],
             fileRefs: [],
             folders: [],

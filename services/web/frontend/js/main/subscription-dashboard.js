@@ -21,6 +21,8 @@ import App from '../base'
 import getMeta from '../utils/meta'
 const SUBSCRIPTION_URL = '/user/subscription/update'
 
+const GROUP_PLAN_MODAL_OPTIONS = getMeta('ol-groupPlanModalOptions')
+
 const ensureRecurlyIsSetup = _.once(() => {
   if (typeof recurly === 'undefined' || !recurly) {
     return false
@@ -28,6 +30,14 @@ const ensureRecurlyIsSetup = _.once(() => {
   recurly.configure(getMeta('ol-recurlyApiKey'))
   return true
 })
+
+function getPricePerUser(price, currencySymbol, size) {
+  let perUserPrice = price / size
+  if (perUserPrice % 1 !== 0) {
+    perUserPrice = perUserPrice.toFixed(2)
+  }
+  return `${currencySymbol}${perUserPrice}`
+}
 
 App.controller('MetricsEmailController', function ($scope, $http) {
   $scope.institutionEmailSubscription = function (institutionId) {
@@ -86,6 +96,7 @@ App.factory('RecurlyPricing', function ($q, MultiCurrencyPricing) {
             }
             resolve({
               total: `${currencySymbol}${total}`,
+              totalValue: total,
               subtotal: `${currencySymbol}${totalPriceExTax.toFixed(2)}`,
               tax: `${currencySymbol}${taxAmount.toFixed(2)}`,
               includesTax: taxAmount !== 0,
@@ -102,7 +113,11 @@ App.controller('ChangePlanToGroupFormController', function ($scope, $modal) {
   const subscription = getMeta('ol-subscription')
   const currency = subscription.recurly.currency
 
-  if (['USD', 'GBP', 'EUR'].includes(currency)) {
+  const validCurrencies = GROUP_PLAN_MODAL_OPTIONS.currencies.map(
+    item => item.code
+  )
+
+  if (validCurrencies.includes(currency)) {
     $scope.isValidCurrencyForUpgrade = true
   }
 
@@ -123,50 +138,9 @@ App.controller('ChangePlanToGroupFormController', function ($scope, $modal) {
 App.controller(
   'GroupPlansModalUpgradeController',
   function ($scope, $modal, $location, $http, RecurlyPricing) {
-    $scope.options = {
-      plan_codes: [
-        {
-          display: 'Collaborator',
-          code: 'collaborator',
-        },
-        {
-          display: 'Professional',
-          code: 'professional',
-        },
-      ],
-      currencies: [
-        {
-          display: 'USD ($)',
-          code: 'USD',
-        },
-        {
-          display: 'GBP (£)',
-          code: 'GBP',
-        },
-        {
-          display: 'EUR (€)',
-          code: 'EUR',
-        },
-      ],
-      currencySymbols: {
-        USD: '$',
-        EUR: '€',
-        GBP: '£',
-      },
-      sizes: [2, 3, 4, 5, 10, 20, 50],
-      usages: [
-        {
-          display: 'Enterprise',
-          code: 'enterprise',
-        },
-        {
-          display: 'Educational',
-          code: 'educational',
-        },
-      ],
-    }
+    $scope.options = GROUP_PLAN_MODAL_OPTIONS
 
-    $scope.prices = getMeta('ol-groupPlans')
+    $scope.groupPlans = getMeta('ol-groupPlans')
 
     const currency = $scope.currentPlanCurrency
 
@@ -182,20 +156,35 @@ App.controller(
       const subscription = getMeta('ol-subscription')
       const { taxRate } = subscription.recurly
       const { usage, plan_code, currency, size } = $scope.selected
-      const placeholder = { total: '...' }
+      $scope.discountEligible = size >= 10
+      const recurlyPricePlaceholder = { total: '...' }
+      let perUserDisplayPricePlaceholder = '...'
+      const currencySymbol = $scope.options.currencySymbols[currency]
       if (taxRate === 0) {
-        const basePrice = $scope.prices[usage][plan_code][currency][size]
-        const currencySymbol = $scope.options.currencySymbols[currency]
-        placeholder.total = `${currencySymbol}${basePrice}`
+        const basePriceInCents =
+          $scope.groupPlans[usage][plan_code][currency][size].price_in_cents
+        const basePriceInUnit = (basePriceInCents / 100).toFixed()
+        recurlyPricePlaceholder.total = `${currencySymbol}${basePriceInUnit}`
+        perUserDisplayPricePlaceholder = getPricePerUser(
+          basePriceInUnit,
+          currencySymbol,
+          size
+        )
       }
-      $scope.displayPrice = placeholder // Placeholder while we talk to recurly
+      $scope.recurlyPrice = recurlyPricePlaceholder // Placeholder while we talk to recurly
+      $scope.perUserDisplayPrice = perUserDisplayPricePlaceholder // Placeholder while we talk to recurly
       const recurlyPlanCode = `group_${plan_code}_${size}_${usage}`
       RecurlyPricing.loadDisplayPriceWithTax(
         recurlyPlanCode,
         currency,
         taxRate
       ).then(price => {
-        $scope.displayPrice = price
+        $scope.recurlyPrice = price
+        $scope.perUserDisplayPrice = getPricePerUser(
+          price.totalValue,
+          currencySymbol,
+          size
+        )
       })
     }
 
@@ -250,10 +239,10 @@ App.controller(
       const planCode = plan.planCode
       const subscription = getMeta('ol-subscription')
       const { currency, taxRate } = subscription.recurly
-      $scope.price = '...' // Placeholder while we talk to recurly
+      $scope.displayPrice = '...' // Placeholder while we talk to recurly
       RecurlyPricing.loadDisplayPriceWithTax(planCode, currency, taxRate).then(
-        price => {
-          $scope.price = price.total
+        recurlyPrice => {
+          $scope.displayPrice = recurlyPrice.total
         }
       )
     })
@@ -396,10 +385,10 @@ App.controller(
     }
 
     const { currency, taxRate } = subscription.recurly
-    $scope.studentPrice = '...' // Placeholder while we talk to recurly
+    $scope.studentDisplayPrice = '...' // Placeholder while we talk to recurly
     RecurlyPricing.loadDisplayPriceWithTax('student', currency, taxRate).then(
       price => {
-        $scope.studentPrice = price.total
+        $scope.studentDisplayPrice = price.total
       }
     )
 

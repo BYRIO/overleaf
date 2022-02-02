@@ -173,7 +173,10 @@ describe('UserGetter', function () {
         {
           email: 'email1@foo.bar',
           role: 'Prof',
+          cached_confirmed_at: '2019-07-11T18:25:01.639Z',
+          cached_reconfirmed_at: '2021-07-11T18:25:01.639Z',
           department: 'Maths',
+          entitlement: false,
           inferred: false,
           licence: 'pro_plus',
           institution: {
@@ -181,6 +184,7 @@ describe('UserGetter', function () {
             isUniversity: true,
             confirmed: true,
           },
+          last_day_to_reconfirm: undefined,
           past_reconfirm_date: false,
           portal: undefined,
         },
@@ -205,6 +209,10 @@ describe('UserGetter', function () {
                 lastDayToReconfirm: undefined,
                 licence: affiliationsData[0].licence,
                 inReconfirmNotificationPeriod: false,
+                cachedConfirmedAt: '2019-07-11T18:25:01.639Z',
+                cachedReconfirmedAt: '2021-07-11T18:25:01.639Z',
+                cachedEntitlement: false,
+                cachedLastDayToReconfirm: undefined,
                 cachedPastReconfirmDate: false,
                 pastReconfirmDate: false,
                 portal: undefined,
@@ -320,6 +328,19 @@ describe('UserGetter', function () {
           },
         ]
         it('should flag inReconfirmNotificationPeriod for all affiliations in period', function (done) {
+          const { maxConfirmationMonths } = institutionNonSSO
+          const confirmed1 = moment()
+            .subtract(maxConfirmationMonths + 2, 'months')
+            .toDate()
+          const lastDayToReconfirm1 = moment(confirmed1)
+            .add(maxConfirmationMonths, 'months')
+            .toDate()
+          const confirmed2 = moment()
+            .subtract(maxConfirmationMonths + 1, 'months')
+            .toDate()
+          const lastDayToReconfirm2 = moment(confirmed2)
+            .add(maxConfirmationMonths, 'months')
+            .toDate()
           const user = {
             _id: '12390i',
             email: email1,
@@ -327,27 +348,20 @@ describe('UserGetter', function () {
               {
                 email: email1,
                 reversedHostname: 'moc.noitailiffa-elpmaxe',
-                confirmedAt: moment()
-                  .subtract(
-                    institutionNonSSO.maxConfirmationMonths + 2,
-                    'months'
-                  )
-                  .toDate(),
+                confirmedAt: confirmed1,
                 default: true,
               },
               {
                 email: email2,
                 reversedHostname: 'moc.noitailiffa-elpmaxe',
-                confirmedAt: moment()
-                  .subtract(
-                    institutionNonSSO.maxConfirmationMonths + 1,
-                    'months'
-                  )
-                  .toDate(),
+                confirmedAt: confirmed2,
               },
             ],
           }
-          this.getUserAffiliations.resolves(affiliationsData)
+          const affiliations = [...affiliationsData]
+          affiliations[0].last_day_to_reconfirm = lastDayToReconfirm1
+          affiliations[1].last_day_to_reconfirm = lastDayToReconfirm2
+          this.getUserAffiliations.resolves(affiliations)
           this.UserGetter.promises.getUser = sinon.stub().resolves(user)
           this.UserGetter.getUserFullEmails(
             this.fakeUser._id,
@@ -364,10 +378,18 @@ describe('UserGetter', function () {
           )
         })
         it('should not flag affiliations outside of notification period', function (done) {
-          const aboutToBeWithinPeriod = moment()
-            .subtract(institutionNonSSO.maxConfirmationMonths, 'months')
+          const { maxConfirmationMonths } = institutionNonSSO
+          const confirmed1 = new Date()
+          const lastDayToReconfirm1 = moment(confirmed1)
+            .add(maxConfirmationMonths, 'months')
+            .toDate()
+          const confirmed2 = moment()
+            .subtract(maxConfirmationMonths, 'months')
             .add(15, 'days')
             .toDate() // expires in 15 days
+          const lastDayToReconfirm2 = moment(confirmed2)
+            .add(maxConfirmationMonths, 'months')
+            .toDate()
           const user = {
             _id: '12390i',
             email: email1,
@@ -375,17 +397,20 @@ describe('UserGetter', function () {
               {
                 email: email1,
                 reversedHostname: 'moc.noitailiffa-elpmaxe',
-                confirmedAt: new Date(),
+                confirmedAt: confirmed1,
                 default: true,
               },
               {
                 email: email2,
                 reversedHostname: 'moc.noitailiffa-elpmaxe',
-                confirmedAt: aboutToBeWithinPeriod,
+                confirmedAt: confirmed2,
               },
             ],
           }
-          this.getUserAffiliations.resolves(affiliationsData)
+          const affiliations = [...affiliationsData]
+          affiliations[0].last_day_to_reconfirm = lastDayToReconfirm1
+          affiliations[1].last_day_to_reconfirm = lastDayToReconfirm2
+          this.getUserAffiliations.resolves(affiliations)
           this.UserGetter.promises.getUser = sinon.stub().resolves(user)
           this.UserGetter.getUserFullEmails(
             this.fakeUser._id,
@@ -405,37 +430,14 @@ describe('UserGetter', function () {
 
       describe('SSO institutions', function () {
         it('should flag only linked email, if in notification period', function (done) {
+          const { maxConfirmationMonths } = institutionSSO
           const email1 = 'email1@sso.bar'
           const email2 = 'email2@sso.bar'
           const email3 = 'email3@sso.bar'
-
-          const affiliationsData = [
-            {
-              email: email1,
-              role: 'Prof',
-              department: 'Maths',
-              inferred: false,
-              licence: 'pro_plus',
-              institution: institutionSSO,
-            },
-            {
-              email: email2,
-              role: 'Prof',
-              department: 'Maths',
-              inferred: false,
-              licence: 'pro_plus',
-              institution: institutionSSO,
-            },
-            {
-              email: email3,
-              role: 'Prof',
-              department: 'Maths',
-              inferred: false,
-              licence: 'pro_plus',
-              institution: institutionSSO,
-            },
-          ]
-
+          const reconfirmedAt = new Date('2019-09-24')
+          const lastDayToReconfirm = moment(reconfirmedAt)
+            .add(maxConfirmationMonths, 'months')
+            .toDate()
           const user = {
             _id: '12390i',
             email: email1,
@@ -444,21 +446,21 @@ describe('UserGetter', function () {
                 email: email1,
                 reversedHostname: 'rab.oss',
                 confirmedAt: new Date('2019-09-24'),
-                reconfirmedAt: new Date('2019-09-24'),
+                reconfirmedAt: reconfirmedAt,
                 default: true,
               },
               {
                 email: email2,
                 reversedHostname: 'rab.oss',
                 confirmedAt: new Date('2019-09-24'),
-                reconfirmedAt: new Date('2019-09-24'),
+                reconfirmedAt: reconfirmedAt,
                 samlProviderId: institutionSSO.id,
               },
               {
                 email: email3,
                 reversedHostname: 'rab.oss',
                 confirmedAt: new Date('2019-09-24'),
-                reconfirmedAt: new Date('2019-09-24'),
+                reconfirmedAt: reconfirmedAt,
               },
             ],
             samlIdentifiers: [
@@ -468,7 +470,36 @@ describe('UserGetter', function () {
               },
             ],
           }
-          this.getUserAffiliations.resolves(affiliationsData)
+          const affiliations = [
+            {
+              email: email1,
+              role: 'Prof',
+              department: 'Maths!',
+              inferred: false,
+              licence: 'pro_plus',
+              institution: institutionSSO,
+              last_day_to_reconfirm: lastDayToReconfirm,
+            },
+            {
+              email: email2,
+              role: 'Prof',
+              department: 'Maths',
+              inferred: false,
+              licence: 'pro_plus',
+              institution: institutionSSO,
+              last_day_to_reconfirm: lastDayToReconfirm,
+            },
+            {
+              email: email3,
+              role: 'Prof',
+              department: 'Maths',
+              inferred: false,
+              licence: 'pro_plus',
+              institution: institutionSSO,
+              last_day_to_reconfirm: lastDayToReconfirm,
+            },
+          ]
+          this.getUserAffiliations.resolves(affiliations)
           this.UserGetter.promises.getUser = sinon.stub().resolves(user)
           this.UserGetter.getUserFullEmails(
             this.fakeUser._id,
@@ -491,10 +522,19 @@ describe('UserGetter', function () {
 
       describe('multiple institution affiliations', function () {
         it('should flag each institution', function (done) {
+          const { maxConfirmationMonths } = institutionSSO
           const email1 = 'email1@sso.bar'
           const email2 = 'email2@sso.bar'
           const email3 = 'email3@foo.bar'
           const email4 = 'email4@foo.bar'
+          const confirmed1 = new Date('2019-09-24T20:25:08.503Z')
+          const lastDayToReconfirm1 = moment(confirmed1)
+            .add(maxConfirmationMonths, 'months')
+            .toDate()
+          const confirmed2 = new Date('2019-10-24T20:25:08.503Z')
+          const lastDayToReconfirm2 = moment(confirmed2)
+            .add(maxConfirmationMonths, 'months')
+            .toDate()
 
           const affiliationsData = [
             {
@@ -504,6 +544,7 @@ describe('UserGetter', function () {
               inferred: false,
               licence: 'pro_plus',
               institution: institutionSSO,
+              last_day_to_reconfirm: lastDayToReconfirm1,
             },
             {
               email: email2,
@@ -512,6 +553,7 @@ describe('UserGetter', function () {
               inferred: false,
               licence: 'pro_plus',
               institution: institutionSSO,
+              last_day_to_reconfirm: lastDayToReconfirm1,
             },
             {
               email: email3,
@@ -520,6 +562,7 @@ describe('UserGetter', function () {
               inferred: false,
               licence: 'pro_plus',
               institution: institutionNonSSO,
+              last_day_to_reconfirm: lastDayToReconfirm2,
             },
             {
               email: email4,
@@ -528,6 +571,7 @@ describe('UserGetter', function () {
               inferred: false,
               licence: 'pro_plus',
               institution: institutionNonSSO,
+              last_day_to_reconfirm: lastDayToReconfirm1,
             },
           ]
           const user = {
@@ -537,24 +581,24 @@ describe('UserGetter', function () {
               {
                 email: email1,
                 reversedHostname: 'rab.oss',
-                confirmedAt: '2019-09-24T20:25:08.503Z',
+                confirmedAt: confirmed1,
                 default: true,
               },
               {
                 email: email2,
                 reversedHostname: 'rab.oss',
-                confirmedAt: new Date('2019-09-24T20:25:08.503Z'),
+                confirmedAt: confirmed1,
                 samlProviderId: institutionSSO.id,
               },
               {
                 email: email3,
                 reversedHostname: 'rab.oof',
-                confirmedAt: new Date('2019-10-24T20:25:08.503Z'),
+                confirmedAt: confirmed2,
               },
               {
                 email: email4,
                 reversedHostname: 'rab.oof',
-                confirmedAt: new Date('2019-09-24T20:25:08.503Z'),
+                confirmedAt: confirmed1,
               },
             ],
             samlIdentifiers: [
@@ -564,6 +608,7 @@ describe('UserGetter', function () {
               },
             ],
           }
+
           this.getUserAffiliations.resolves(affiliationsData)
           this.UserGetter.promises.getUser = sinon.stub().resolves(user)
           this.UserGetter.getUserFullEmails(
@@ -590,9 +635,31 @@ describe('UserGetter', function () {
 
       describe('reconfirmedAt', function () {
         it('only use confirmedAt when no reconfirmedAt', function (done) {
+          const { maxConfirmationMonths } = institutionSSO
           const email1 = 'email1@foo.bar'
+          const reconfirmed1 = moment().subtract(
+            maxConfirmationMonths * 3,
+            'months'
+          )
+          const lastDayToReconfirm1 = moment(reconfirmed1)
+            .add(maxConfirmationMonths, 'months')
+            .toDate()
           const email2 = 'email2@foo.bar'
+          const reconfirmed2 = moment().subtract(
+            maxConfirmationMonths * 2,
+            'months'
+          )
+          const lastDayToReconfirm2 = moment(reconfirmed2)
+            .add(maxConfirmationMonths, 'months')
+            .toDate()
           const email3 = 'email3@foo.bar'
+          const reconfirmed3 = moment().subtract(
+            maxConfirmationMonths * 4,
+            'months'
+          )
+          const lastDayToReconfirm3 = moment(reconfirmed3)
+            .add(maxConfirmationMonths, 'months')
+            .toDate()
 
           const affiliationsData = [
             {
@@ -602,6 +669,7 @@ describe('UserGetter', function () {
               inferred: false,
               licence: 'pro_plus',
               institution: institutionNonSSO,
+              last_day_to_reconfirm: lastDayToReconfirm1,
             },
             {
               email: email2,
@@ -610,6 +678,7 @@ describe('UserGetter', function () {
               inferred: false,
               licence: 'pro_plus',
               institution: institutionNonSSO,
+              last_day_to_reconfirm: lastDayToReconfirm2,
             },
             {
               email: email3,
@@ -618,6 +687,7 @@ describe('UserGetter', function () {
               inferred: false,
               licence: 'pro_plus',
               institution: institutionNonSSO,
+              last_day_to_reconfirm: lastDayToReconfirm3,
             },
           ]
           const user = {
@@ -631,10 +701,7 @@ describe('UserGetter', function () {
                   institutionSSO.maxConfirmationMonths * 2,
                   'months'
                 ),
-                reconfirmedAt: moment().subtract(
-                  institutionSSO.maxConfirmationMonths * 3,
-                  'months'
-                ),
+                reconfirmedAt: reconfirmed1,
                 default: true,
               },
               {
@@ -644,10 +711,7 @@ describe('UserGetter', function () {
                   institutionSSO.maxConfirmationMonths * 3,
                   'months'
                 ),
-                reconfirmedAt: moment().subtract(
-                  institutionSSO.maxConfirmationMonths * 2,
-                  'months'
-                ),
+                reconfirmedAt: reconfirmed2,
               },
               {
                 email: email3,
@@ -656,10 +720,7 @@ describe('UserGetter', function () {
                   institutionSSO.maxConfirmationMonths * 4,
                   'months'
                 ),
-                reconfirmedAt: moment().subtract(
-                  institutionSSO.maxConfirmationMonths * 4,
-                  'months'
-                ),
+                reconfirmedAt: reconfirmed3,
               },
             ],
           }
@@ -687,8 +748,9 @@ describe('UserGetter', function () {
       describe('before reconfirmation period expires and within reconfirmation notification period', function () {
         const email = 'leonard@example-affiliation.com'
         it('should flag the email', function (done) {
+          const { maxConfirmationMonths } = institutionNonSSO
           const confirmedAt = moment()
-            .subtract(institutionNonSSO.maxConfirmationMonths, 'months')
+            .subtract(maxConfirmationMonths, 'months')
             .subtract(14, 'days')
             .toDate() // expires in 14 days
           const affiliationsData = [
@@ -699,6 +761,9 @@ describe('UserGetter', function () {
               inferred: false,
               licence: 'pro_plus',
               institution: institutionNonSSO,
+              last_day_to_reconfirm: moment(confirmedAt)
+                .add(maxConfirmationMonths, 'months')
+                .toDate(),
             },
           ]
           const user = {
@@ -807,6 +872,7 @@ describe('UserGetter', function () {
             email,
             licence: 'free',
             institution: institutionNonSSO,
+            last_day_to_reconfirm: '2020-07-11T18:25:01.639Z',
             past_reconfirm_date: true,
           },
         ]
@@ -833,6 +899,106 @@ describe('UserGetter', function () {
             done()
           }
         )
+      })
+
+      it('should flag to show notification if v1 shows as reconfirmation upcoming but v2 does not', function (done) {
+        const email = 'abc123@test.com'
+        const { maxConfirmationMonths } = institutionNonSSO
+        const affiliationsData = [
+          {
+            email,
+            licence: 'free',
+            institution: institutionNonSSO,
+            last_day_to_reconfirm: moment()
+              .subtract(maxConfirmationMonths, 'months')
+              .add(3, 'day')
+              .toDate(),
+          },
+        ]
+        const user = {
+          _id: '12390i',
+          email,
+          emails: [
+            {
+              email,
+              confirmedAt: new Date(),
+              default: true,
+            },
+          ],
+        }
+        this.getUserAffiliations.resolves(affiliationsData)
+        this.UserGetter.promises.getUser = sinon.stub().resolves(user)
+        this.UserGetter.getUserFullEmails(
+          this.fakeUser._id,
+          (error, fullEmails) => {
+            expect(error).to.not.exist
+            expect(
+              fullEmails[0].affiliation.inReconfirmNotificationPeriod
+            ).to.equal(true)
+            done()
+          }
+        )
+      })
+
+      describe('cachedLastDayToReconfirm', function () {
+        const email = 'abc123@test.com'
+        const confirmedAt = new Date('2019-07-11T18:25:01.639Z')
+        const lastDay = '2020-07-11T18:25:01.639Z'
+        const affiliationsData = [
+          {
+            email,
+            licence: 'professional',
+            institution: institutionSSO,
+            last_day_to_reconfirm: lastDay,
+            past_reconfirm_date: true,
+          },
+        ]
+        const user = {
+          _id: '12390i',
+          email,
+          emails: [
+            {
+              email,
+              confirmedAt,
+              default: true,
+            },
+          ],
+        }
+
+        it('should set cachedLastDayToReconfirm for SSO institutions if email is linked to SSO', async function () {
+          const userLinked = Object.assign({}, user)
+          userLinked.emails[0].samlProviderId = institutionSSO.id.toString()
+          this.getUserAffiliations.resolves(affiliationsData)
+          this.UserGetter.promises.getUser = sinon.stub().resolves(userLinked)
+          const fullEmails = await this.UserGetter.promises.getUserFullEmails(
+            this.fakeUser._id
+          )
+          expect(fullEmails[0].affiliation.cachedLastDayToReconfirm).to.equal(
+            lastDay
+          )
+        })
+
+        it('should NOT set cachedLastDayToReconfirm for SSO institutions if email is NOT linked to SSO', async function () {
+          this.getUserAffiliations.resolves(affiliationsData)
+          this.UserGetter.promises.getUser = sinon.stub().resolves(user)
+          const fullEmails = await this.UserGetter.promises.getUserFullEmails(
+            this.fakeUser._id
+          )
+          expect(fullEmails[0].affiliation.cachedLastDayToReconfirm).to.equal(
+            lastDay
+          )
+        })
+
+        it('should set cachedLastDayToReconfirm for non-SSO institutions', async function () {
+          this.getUserAffiliations.resolves(affiliationsData)
+          this.UserGetter.promises.getUser = sinon.stub().resolves(user)
+          const fullEmails = await this.UserGetter.promises.getUserFullEmails(
+            this.fakeUser._id
+          )
+          expect(fullEmails[0].affiliation.cachedLastDayToReconfirm).to.equal(
+            lastDay
+          )
+        })
       })
     })
   })

@@ -1,6 +1,5 @@
 import { isMainFile } from './editor-files'
 import getMeta from '../../../utils/meta'
-import { sendMBSampled } from '../../../infrastructure/event-tracking'
 import { deleteJSON, postJSON } from '../../../infrastructure/fetch-json'
 import { debounce } from 'lodash'
 import { trackPdfDownload } from '../../../ide/pdf/controllers/PdfJsMetrics'
@@ -16,7 +15,8 @@ const searchParams = new URLSearchParams(window.location.search)
 
 export default class DocumentCompiler {
   constructor({
-    project,
+    projectId,
+    rootDocId,
     setChangedAt,
     setCompiling,
     setData,
@@ -25,7 +25,8 @@ export default class DocumentCompiler {
     cleanupCompileResult,
     signal,
   }) {
-    this.project = project
+    this.projectId = projectId
+    this.rootDocId = rootDocId
     this.setChangedAt = setChangedAt
     this.setCompiling = setCompiling
     this.setData = setData
@@ -74,9 +75,6 @@ export default class DocumentCompiler {
     }
 
     try {
-      // log a sample of the compile requests
-      sendMBSampled('editor-recompile-sampled', options)
-
       // reset values
       this.setChangedAt(0)
       this.validationIssues = undefined
@@ -88,7 +86,7 @@ export default class DocumentCompiler {
       const t0 = performance.now()
 
       const data = await postJSON(
-        `/project/${this.project._id}/compile?${params}`,
+        `/project/${this.projectId}/compile?${params}`,
         {
           body: {
             rootDoc_id: this.getRootDocOverrideId(),
@@ -104,6 +102,10 @@ export default class DocumentCompiler {
       const compileTimeClientE2E = performance.now() - t0
       const { firstRenderDone } = trackPdfDownload(data, compileTimeClientE2E)
       this.setFirstRenderDone(() => firstRenderDone)
+
+      // unset the error before it's set again later, so that components are recreated and events are tracked
+      this.setError(undefined)
+
       data.options = options
       if (data.clsiServerId) {
         this.clsiServerId = data.clsiServerId
@@ -122,7 +124,7 @@ export default class DocumentCompiler {
   // if it contains "\documentclass" then use this as the root doc
   getRootDocOverrideId() {
     // only override when not in the root doc itself
-    if (this.currentDoc.doc_id !== this.project.rootDoc_id) {
+    if (this.currentDoc.doc_id !== this.rootDocId) {
       const snapshot = this.currentDoc.getSnapshot()
 
       if (snapshot && isMainFile(snapshot)) {
@@ -177,7 +179,7 @@ export default class DocumentCompiler {
 
     const params = this.buildPostCompileParams()
 
-    return postJSON(`/project/${this.project._id}/compile/stop?${params}`, {
+    return postJSON(`/project/${this.projectId}/compile/stop?${params}`, {
       signal: this.signal,
     })
       .catch(error => {
@@ -193,7 +195,7 @@ export default class DocumentCompiler {
   clearCache() {
     const params = this.buildPostCompileParams()
 
-    return deleteJSON(`/project/${this.project._id}/output?${params}`, {
+    return deleteJSON(`/project/${this.projectId}/output?${params}`, {
       signal: this.signal,
     }).catch(error => {
       console.error(error)

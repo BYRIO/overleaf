@@ -18,10 +18,8 @@ import { useProjectContext } from '../../../shared/context/project-context'
 
 export default function EditMember({ member }) {
   const [privileges, setPrivileges] = useState(member.privileges)
-  const [
-    confirmingOwnershipTransfer,
-    setConfirmingOwnershipTransfer,
-  ] = useState(false)
+  const [confirmingOwnershipTransfer, setConfirmingOwnershipTransfer] =
+    useState(false)
 
   // update the local state if the member's privileges change externally
   useEffect(() => {
@@ -29,7 +27,7 @@ export default function EditMember({ member }) {
   }, [member.privileges])
 
   const { updateProject, monitorRequest } = useShareProjectContext()
-  const project = useProjectContext()
+  const { _id: projectId, members } = useProjectContext()
 
   function handleSubmit(event) {
     event.preventDefault()
@@ -38,12 +36,12 @@ export default function EditMember({ member }) {
       setConfirmingOwnershipTransfer(true)
     } else {
       monitorRequest(() =>
-        updateMember(project, member, {
+        updateMember(projectId, member, {
           privilegeLevel: privileges,
         })
       ).then(() => {
         updateProject({
-          members: project.members.map(item =>
+          members: members.map(item =>
             item._id === member._id ? { ...item, privileges } : item
           ),
         })
@@ -120,16 +118,18 @@ SelectPrivilege.propTypes = {
 function RemoveMemberAction({ member }) {
   const { t } = useTranslation()
   const { updateProject, monitorRequest } = useShareProjectContext()
-  const project = useProjectContext()
+  const { _id: projectId, members } = useProjectContext()
 
   function handleClick(event) {
     event.preventDefault()
 
-    monitorRequest(() => removeMemberFromProject(project, member)).then(() => {
-      updateProject({
-        members: project.members.filter(existing => existing !== member),
-      })
-    })
+    monitorRequest(() => removeMemberFromProject(projectId, member)).then(
+      () => {
+        updateProject({
+          members: members.filter(existing => existing !== member),
+        })
+      }
+    )
   }
 
   return (

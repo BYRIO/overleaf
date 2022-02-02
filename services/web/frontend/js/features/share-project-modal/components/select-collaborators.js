@@ -10,7 +10,8 @@ import Icon from '../../../shared/components/icon'
 // Unicode characters in these Unicode groups:
 //  "General Punctuation — Spaces"
 //  "General Punctuation — Format character" (including zero-width spaces)
-const matchAllSpaces = /[\u061C\u2000-\u200F\u202A-\u202E\u2060\u2066-\u2069\u2028\u2029\u202F]/g
+const matchAllSpaces =
+  /[\u061C\u2000-\u200F\u202A-\u202E\u2060\u2066-\u2069\u2028\u2029\u202F]/g
 
 export default function SelectCollaborators({
   loading,
@@ -28,23 +29,30 @@ export default function SelectCollaborators({
 
   const [inputValue, setInputValue] = useState('')
 
-  const selectedEmails = useMemo(() => selectedItems.map(item => item.email), [
-    selectedItems,
-  ])
+  const selectedEmails = useMemo(
+    () => selectedItems.map(item => item.email),
+    [selectedItems]
+  )
 
   const unselectedOptions = useMemo(
     () => options.filter(option => !selectedEmails.includes(option.email)),
     [options, selectedEmails]
   )
 
-  const filteredOptions = useMemo(
-    () =>
-      matchSorter(unselectedOptions, inputValue, {
-        keys: ['name', 'email'],
-        threshold: matchSorter.rankings.CONTAINS,
-      }),
-    [unselectedOptions, inputValue]
-  )
+  const filteredOptions = useMemo(() => {
+    if (inputValue === '') {
+      return unselectedOptions
+    }
+
+    return matchSorter(unselectedOptions, inputValue, {
+      keys: ['name', 'email'],
+      threshold: matchSorter.rankings.CONTAINS,
+      baseSort: (a, b) => {
+        // Prefer server-side sorting for ties in the match ranking.
+        return a.index - b.index > 0 ? 1 : -1
+      },
+    })
+  }, [unselectedOptions, inputValue])
 
   const inputRef = useRef(null)
 
@@ -262,7 +270,7 @@ function Option({ selected, item, getItemProps, index }) {
       className={classnames('suggestion-item', { selected })}
       {...getItemProps({ item, index })}
     >
-      <Icon type="user" modifier="fw" />
+      <Icon type="user" fw />
       &nbsp;
       {item.display}
     </li>
@@ -301,7 +309,7 @@ function SelectedItem({
       className="tag-item"
       {...getSelectedItemProps({ selectedItem, index })}
     >
-      <Icon type="user" modifier="fw" />
+      <Icon type="user" fw />
       <span>{selectedItem.display}</span>
       <button
         type="button"
@@ -309,7 +317,7 @@ function SelectedItem({
         aria-label={t('remove')}
         onClick={handleClick}
       >
-        <Icon type="close" modifier="fw" />
+        <Icon type="close" fw />
       </button>
     </span>
   )

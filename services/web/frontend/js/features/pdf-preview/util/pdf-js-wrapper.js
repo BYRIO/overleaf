@@ -11,6 +11,11 @@ if (typeof window !== 'undefined' && 'Worker' in window) {
   PDFJS.GlobalWorkerOptions.workerPort = new PDFJSWorker()
 }
 
+// forces the method (required by pdf.js) to be polyfilled by webpack, since
+// processing pdf.js by webpack/babel causes issues loading documents
+// eslint-disable-next-line no-unused-expressions
+Promise.allSettled
+
 const params = new URLSearchParams(window.location.search)
 const disableFontFace = params.get('disable-font-face') === 'true'
 const cMapUrl = getMeta('ol-pdfCMapsPath')
@@ -109,6 +114,10 @@ export default class PDFJSWrapper {
 
   // update the current scale value if the container size changes
   updateOnResize() {
+    if (!this.isVisible()) {
+      return
+    }
+
     const currentScaleValue = this.viewer.currentScaleValue
 
     if (
@@ -150,12 +159,13 @@ export default class PDFJSWrapper {
 
     const containerRect = this.container.getBoundingClientRect()
     const dy = containerRect.top - pageRect.top
+    const dx = containerRect.left - pageRect.left
+    const [left, top] = pageView.viewport.convertToPdfPoint(dx, dy)
     const [, , width, height] = pageView.viewport.viewBox
-    const [, top] = pageView.viewport.convertToPdfPoint(0, dy)
 
     return {
       page: pageIndex,
-      offset: { top, left: 0 },
+      offset: { top, left },
       pageSize: { height, width },
     }
   }
@@ -180,6 +190,10 @@ export default class PDFJSWrapper {
     this.viewer.container.scrollBy({
       top: -9,
     })
+  }
+
+  isVisible() {
+    return this.viewer.container.offsetParent !== null
   }
 
   abortDocumentLoading() {

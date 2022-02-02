@@ -52,6 +52,7 @@ const SystemMessageController = require('./Features/SystemMessages/SystemMessage
 const AnalyticsRegistrationSourceMiddleware = require('./Features/Analytics/AnalyticsRegistrationSourceMiddleware')
 const AnalyticsUTMTrackingMiddleware = require('./Features/Analytics/AnalyticsUTMTrackingMiddleware')
 const SplitTestMiddleware = require('./Features/SplitTests/SplitTestMiddleware')
+const CaptchaMiddleware = require('./Features/Captcha/CaptchaMiddleware')
 const { Joi, validate } = require('./infrastructure/Validation')
 const {
   renderUnsupportedBrowserPage,
@@ -61,6 +62,7 @@ const {
 const logger = require('@overleaf/logger')
 const _ = require('underscore')
 const { expressify } = require('./util/promises')
+const { plainTextResponse } = require('./infrastructure/Response')
 
 module.exports = { initialize }
 
@@ -80,15 +82,35 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     )
   )
 
+  // Mount onto /login in order to get the deviceHistory cookie.
+  webRouter.post(
+    '/login/can-skip-captcha',
+    // Keep in sync with the overleaf-login options.
+    RateLimiterMiddleware.rateLimit({
+      endpointName: 'can-skip-captcha',
+      maxRequests: 20,
+      timeInterval: 60,
+    }),
+    CaptchaMiddleware.canSkipCaptcha
+  )
+
   webRouter.get('/login', UserPagesController.loginPage)
   AuthenticationController.addEndpointToLoginWhitelist('/login')
 
-  webRouter.post('/login', AuthenticationController.passportLogin)
+  webRouter.post(
+    '/login',
+    CaptchaMiddleware.validateCaptcha('login'),
+    AuthenticationController.passportLogin
+  )
 
   if (Settings.enableLegacyLogin) {
     AuthenticationController.addEndpointToLoginWhitelist('/login/legacy')
     webRouter.get('/login/legacy', UserPagesController.loginPage)
-    webRouter.post('/login/legacy', AuthenticationController.passportLogin)
+    webRouter.post(
+      '/login/legacy',
+      CaptchaMiddleware.validateCaptcha('login'),
+      AuthenticationController.passportLogin
+    )
   }
 
   webRouter.get(
@@ -847,8 +869,13 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
   )
   webRouter.post(
     '/spelling/learn',
+    validate({
+      body: Joi.object({
+        word: Joi.string().required(),
+      }),
+    }),
     AuthenticationController.requireLogin(),
-    SpellingController.proxyRequestToSpellingApi
+    SpellingController.learn
   )
 
   webRouter.get(
@@ -1017,23 +1044,27 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     AdminController.unregisterServiceWorker
   )
 
-  privateApiRouter.get('/perfTest', (req, res) => res.send('hello'))
+  privateApiRouter.get('/perfTest', (req, res) => {
+    plainTextResponse(res, 'hello')
+  })
 
   publicApiRouter.get('/status', (req, res) => {
     if (!Settings.siteIsOpen) {
-      res.send('web site is closed (web)')
+      plainTextResponse(res, 'web site is closed (web)')
     } else if (!Settings.editorIsOpen) {
-      res.send('web editor is closed (web)')
+      plainTextResponse(res, 'web editor is closed (web)')
     } else {
-      res.send('web sharelatex is alive (web)')
+      plainTextResponse(res, 'web sharelatex is alive (web)')
     }
   })
-  privateApiRouter.get('/status', (req, res) =>
-    res.send('web sharelatex is alive (api)')
-  )
+  privateApiRouter.get('/status', (req, res) => {
+    plainTextResponse(res, 'web sharelatex is alive (api)')
+  })
 
   // used by kubernetes health-check and acceptance tests
-  webRouter.get('/dev/csrf', (req, res) => res.send(res.locals.csrfToken))
+  webRouter.get('/dev/csrf', (req, res) => {
+    plainTextResponse(res, res.locals.csrfToken)
+  })
 
   publicApiRouter.get(
     '/health_check',
@@ -1084,7 +1115,7 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
       const projectId = req.params.Project_id
       const sendRes = _.once(function (statusCode, message) {
         res.status(statusCode)
-        res.send(message)
+        plainTextResponse(res, message)
         ClsiCookieManager.clearServerId(projectId)
       }) // force every compile to a new server
       // set a timeout

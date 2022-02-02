@@ -7,7 +7,12 @@ import React, {
 } from 'react'
 import PropTypes from 'prop-types'
 import ShareProjectModalContent from './share-project-modal-content'
-import { useProjectContext } from '../../../shared/context/project-context'
+import {
+  useProjectContext,
+  projectShape,
+} from '../../../shared/context/project-context'
+import { useSplitTestContext } from '../../../shared/context/split-test-context'
+import { sendMB } from '../../../infrastructure/event-tracking'
 
 const ShareProjectContext = createContext()
 
@@ -35,32 +40,6 @@ export function useShareProjectContext() {
   return context
 }
 
-const projectShape = {
-  _id: PropTypes.string.isRequired,
-  members: PropTypes.arrayOf(
-    PropTypes.shape({
-      _id: PropTypes.string.isRequired,
-    })
-  ),
-  invites: PropTypes.arrayOf(
-    PropTypes.shape({
-      _id: PropTypes.string.isRequired,
-    })
-  ),
-  name: PropTypes.string,
-  features: PropTypes.shape({
-    collaborators: PropTypes.number,
-  }),
-  publicAccesLevel: PropTypes.string,
-  tokens: PropTypes.shape({
-    readOnly: PropTypes.string,
-    readAndWrite: PropTypes.string,
-  }),
-  owner: PropTypes.shape({
-    email: PropTypes.string,
-  }),
-}
-
 const ShareProjectModal = React.memo(function ShareProjectModal({
   handleHide,
   show,
@@ -71,6 +50,19 @@ const ShareProjectModal = React.memo(function ShareProjectModal({
   const [error, setError] = useState()
 
   const project = useProjectContext(projectShape)
+
+  const { splitTestVariants } = useSplitTestContext({
+    splitTestVariants: PropTypes.object,
+  })
+
+  // send tracking event when the modal is opened
+  useEffect(() => {
+    if (show) {
+      sendMB('share-modal-opened', {
+        splitTestVariant: splitTestVariants['null-test-share-modal'],
+      })
+    }
+  }, [splitTestVariants, show])
 
   // reset error when the modal is opened
   useEffect(() => {
@@ -109,9 +101,10 @@ const ShareProjectModal = React.memo(function ShareProjectModal({
   }, [])
 
   // merge the new data with the old project data
-  const updateProject = useCallback(data => Object.assign(project, data), [
-    project,
-  ])
+  const updateProject = useCallback(
+    data => Object.assign(project, data),
+    [project]
+  )
 
   if (!project) {
     return null

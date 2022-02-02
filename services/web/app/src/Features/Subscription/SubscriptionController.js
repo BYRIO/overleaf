@@ -18,6 +18,7 @@ const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const RecurlyEventHandler = require('./RecurlyEventHandler')
 const { expressify } = require('../../util/promises')
 const OError = require('@overleaf/o-error')
+const SplitTestHandler = require('../SplitTests/SplitTestHandler')
 
 const groupPlanModalOptions = Settings.groupPlanModalOptions
 const validGroupPlanModalOptions = {
@@ -30,11 +31,10 @@ const validGroupPlanModalOptions = {
 async function plansPage(req, res) {
   const plans = SubscriptionViewModelBuilder.buildPlansList()
 
-  const {
-    currencyCode: recommendedCurrency,
-  } = await GeoIpLookup.promises.getCurrencyCode(
-    (req.query ? req.query.ip : undefined) || req.ip
-  )
+  const { currencyCode: recommendedCurrency } =
+    await GeoIpLookup.promises.getCurrencyCode(
+      (req.query ? req.query.ip : undefined) || req.ip
+    )
 
   function getDefault(param, category, defaultValue) {
     const v = req.query && req.query[param]
@@ -55,11 +55,19 @@ async function plansPage(req, res) {
     usage: getDefault('usage', 'usage', 'enterprise'),
   }
 
+  AnalyticsManager.recordEventForSession(req.session, 'plans-page-view')
+
+  const assignment = await SplitTestHandler.promises.getAssignment(
+    req,
+    'plans-page-layout'
+  )
+
+  const newPlansPageVariant =
+    assignment && assignment.variant === 'new-plans-page'
+
   res.render('subscriptions/plans-marketing', {
     title: 'plans_and_pricing',
     plans,
-    gaExperiments: Settings.gaExperiments.plansPage,
-    gaOptimize: true,
     itm_content: req.query && req.query.itm_content,
     recomendedCurrency: recommendedCurrency,
     recommendedCurrency,
@@ -67,6 +75,7 @@ async function plansPage(req, res) {
     groupPlans: GroupPlansData,
     groupPlanModalOptions,
     groupPlanModalDefaults,
+    newPlansPageVariant,
   })
 }
 
@@ -77,17 +86,17 @@ async function paymentPage(req, res) {
   if (!plan) {
     return HttpErrorHandler.unprocessableEntity(req, res, 'Plan not found')
   }
-  const hasSubscription = await LimitationsManager.promises.userHasV1OrV2Subscription(
-    user
-  )
+  const hasSubscription =
+    await LimitationsManager.promises.userHasV1OrV2Subscription(user)
   if (hasSubscription) {
     res.redirect('/user/subscription?hasSubscription=true')
   } else {
     // LimitationsManager.userHasV2Subscription only checks Mongo. Double check with
     // Recurly as well at this point (we don't do this most places for speed).
-    const valid = await SubscriptionHandler.promises.validateNoSubscriptionInRecurly(
-      user._id
-    )
+    const valid =
+      await SubscriptionHandler.promises.validateNoSubscriptionInRecurly(
+        user._id
+      )
     if (!valid) {
       res.redirect('/user/subscription?hasSubscription=true')
     } else {
@@ -98,12 +107,10 @@ async function paymentPage(req, res) {
           currency = queryCurrency
         }
       }
-      const {
-        currencyCode: recommendedCurrency,
-        countryCode,
-      } = await GeoIpLookup.promises.getCurrencyCode(
-        (req.query ? req.query.ip : undefined) || req.ip
-      )
+      const { currencyCode: recommendedCurrency, countryCode } =
+        await GeoIpLookup.promises.getCurrencyCode(
+          (req.query ? req.query.ip : undefined) || req.ip
+        )
       if (recommendedCurrency && currency == null) {
         currency = recommendedCurrency
       }
@@ -119,7 +126,6 @@ async function paymentPage(req, res) {
         }),
         showCouponField: !!req.query.scf,
         showVatField: !!req.query.svf,
-        gaOptimize: true,
       })
     }
   }
@@ -127,9 +133,10 @@ async function paymentPage(req, res) {
 
 async function userSubscriptionPage(req, res) {
   const user = SessionManager.getSessionUser(req.session)
-  const results = await SubscriptionViewModelBuilder.promises.buildUsersSubscriptionViewModel(
-    user
-  )
+  const results =
+    await SubscriptionViewModelBuilder.promises.buildUsersSubscriptionViewModel(
+      user
+    )
   const {
     personalSubscription,
     memberGroupSubscriptions,
@@ -139,9 +146,8 @@ async function userSubscriptionPage(req, res) {
     managedPublishers,
     v1SubscriptionStatus,
   } = results
-  const hasSubscription = await LimitationsManager.promises.userHasV1OrV2Subscription(
-    user
-  )
+  const hasSubscription =
+    await LimitationsManager.promises.userHasV1OrV2Subscription(user)
   const fromPlansPage = req.query.hasSubscription
   const plans = SubscriptionViewModelBuilder.buildPlansList(
     personalSubscription ? personalSubscription.plan : undefined
@@ -163,6 +169,7 @@ async function userSubscriptionPage(req, res) {
     managedPublishers,
     v1SubscriptionStatus,
     currentInstitutionsWithLicence,
+    groupPlanModalOptions,
   }
   res.render('subscriptions/dashboard', data)
 }
@@ -446,9 +453,8 @@ function processUpgradeToAnnualPlan(req, res, next) {
 
 async function extendTrial(req, res) {
   const user = SessionManager.getSessionUser(req.session)
-  const {
-    subscription,
-  } = await LimitationsManager.promises.userHasV2Subscription(user)
+  const { subscription } =
+    await LimitationsManager.promises.userHasV2Subscription(user)
 
   try {
     await SubscriptionHandler.promises.extendTrial(subscription, 14)
@@ -482,6 +488,18 @@ async function refreshUserFeatures(req, res) {
   res.sendStatus(200)
 }
 
+async function redirectToHostedPage(req, res) {
+  const userId = SessionManager.getLoggedInUserId(req.session)
+  const { pageType } = req.params
+  const url =
+    await SubscriptionViewModelBuilder.promises.getRedirectToHostedPage(
+      userId,
+      pageType
+    )
+  logger.warn({ userId, pageType }, 'redirecting to recurly hosted page')
+  res.redirect(url)
+}
+
 module.exports = {
   plansPage: expressify(plansPage),
   paymentPage: expressify(paymentPage),
@@ -501,4 +519,5 @@ module.exports = {
   extendTrial: expressify(extendTrial),
   recurlyNotificationParser,
   refreshUserFeatures: expressify(refreshUserFeatures),
+  redirectToHostedPage: expressify(redirectToHostedPage),
 }

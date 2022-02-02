@@ -2,24 +2,21 @@
 # Instead run bin/update_build_scripts from
 # https://github.com/sharelatex/sharelatex-dev-environment
 
-FROM node:14.18.1 as base
+FROM node:14.18.3 as base
 
-WORKDIR /app
-COPY install_deps.sh /app
+WORKDIR /overleaf/services/spelling
+COPY services/spelling/install_deps.sh /overleaf/services/spelling/
 RUN chmod 0755 ./install_deps.sh && ./install_deps.sh
 
 FROM base as app
 
-#wildcard as some files may not be in all repos
-COPY package*.json npm-shrink*.json /app/
+COPY services/spelling/package*.json /overleaf/services/spelling/
 
 RUN npm ci --quiet
 
-COPY . /app
+COPY services/spelling /overleaf/services/spelling
 
-FROM base
-
-COPY --from=app /app /app
+FROM app
 RUN mkdir -p cache \
 &&  chown node:node cache
 USER node

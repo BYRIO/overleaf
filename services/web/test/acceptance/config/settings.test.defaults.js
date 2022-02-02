@@ -33,6 +33,11 @@ module.exports = {
       user: httpAuthUser,
       pass: httpAuthPass,
     },
+
+    haveIBeenPwned: {
+      enabled: true,
+      url: 'http://localhost:1337',
+    },
   },
 
   // for registration via SL, set enableLegacyRegistration to true
@@ -116,25 +121,25 @@ module.exports = {
     {
       planCode: 'v1_free',
       name: 'V1 Free',
-      price: 0,
+      price_in_cents: 0,
       features: features.v1_free,
     },
     {
       planCode: 'personal',
       name: 'Personal',
-      price: 0,
+      price_in_cents: 0,
       features: features.personal,
     },
     {
       planCode: 'collaborator',
       name: 'Collaborator',
-      price: 1500,
+      price_in_cents: 1500,
       features: features.collaborator,
     },
     {
       planCode: 'professional',
       name: 'Professional',
-      price: 3000,
+      price_in_cents: 3000,
       features: features.professional,
     },
   ],
@@ -187,6 +192,16 @@ module.exports = {
 
   unsupportedBrowsers: {
     ie: '<=11',
+  },
+
+  recaptcha: {
+    siteKey: 'siteKey',
+    disabled: {
+      invite: true,
+      login: false,
+      passwordReset: true,
+      register: true,
+    },
   },
 
   // No email in tests

@@ -62,6 +62,7 @@ async function setupDb() {
   db.samlCache = internalDb.collection('samlCache')
   db.samlLogs = internalDb.collection('samlLogs')
   db.spellingPreferences = internalDb.collection('spellingPreferences')
+  db.splittests = internalDb.collection('splittests')
   db.subscriptions = internalDb.collection('subscriptions')
   db.systemmessages = internalDb.collection('systemmessages')
   db.tags = internalDb.collection('tags')
@@ -71,12 +72,7 @@ async function setupDb() {
   db.users = internalDb.collection('users')
   db.userstubs = internalDb.collection('userstubs')
 }
-async function addCollection(name) {
-  await waitForDb()
-  const internalDb = (await clientPromise).db()
 
-  db[name] = internalDb.collection(name)
-}
 async function getCollectionNames() {
   const internalDb = (await clientPromise).db()
 
@@ -84,10 +80,18 @@ async function getCollectionNames() {
   return collections.map(collection => collection.collectionName)
 }
 
+/**
+ * WARNING: Consider using a pre-populated collection from `db` to avoid typos!
+ */
+async function getCollectionInternal(name) {
+  const internalDb = (await clientPromise).db()
+  return internalDb.collection(name)
+}
+
 module.exports = {
   db,
   ObjectId,
-  addCollection,
   getCollectionNames,
+  getCollectionInternal,
   waitForDb,
 }

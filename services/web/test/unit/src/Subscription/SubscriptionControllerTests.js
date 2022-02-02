@@ -116,7 +116,6 @@ describe('SubscriptionController', function () {
         },
       },
       siteUrl: 'http://de.sharelatex.dev:3000',
-      gaExperiments: {},
     }
     this.GeoIpLookup = {
       isValidCurrencyParam: sinon.stub().returns(true),
@@ -133,12 +132,12 @@ describe('SubscriptionController', function () {
     }
     this.SplitTestV2Hander = {
       promises: {
-        getAssignmentForSession: sinon.stub().resolves({ variant: 'default' }),
+        getAssignment: sinon.stub().resolves({ variant: 'default' }),
       },
     }
     this.SubscriptionController = SandboxedModule.require(modulePath, {
       requires: {
-        '../SplitTests/SplitTestV2Handler': this.SplitTestV2Hander,
+        '../SplitTests/SplitTestHandler': this.SplitTestV2Hander,
         '../Authentication/SessionManager': this.SessionManager,
         './SubscriptionHandler': this.SubscriptionHandler,
         './PlansLocator': this.PlansLocator,
@@ -162,9 +161,6 @@ describe('SubscriptionController', function () {
           recordEventForUser: sinon.stub(),
           recordEventForSession: sinon.stub(),
           setUserPropertyForUser: sinon.stub(),
-        }),
-        '../SplitTests/SplitTestHandler': (this.SplitTestHandler = {
-          getTestSegmentation: () => {},
         }),
       },
     })
@@ -467,7 +463,8 @@ describe('SubscriptionController', function () {
         threeDSecureActionResult: '5678',
       }
       this.req.body.recurly_token_id = this.recurlyTokenIds.billing
-      this.req.body.recurly_three_d_secure_action_result_token_id = this.recurlyTokenIds.threeDSecureActionResult
+      this.req.body.recurly_three_d_secure_action_result_token_id =
+        this.recurlyTokenIds.threeDSecureActionResult
       this.req.body.subscriptionDetails = this.subscriptionDetails
       this.LimitationsManager.userHasV1OrV2Subscription.yields(null, false)
       return this.SubscriptionController.createSubscription(this.req, this.res)

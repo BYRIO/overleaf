@@ -1,6 +1,7 @@
 const { expect } = require('chai')
 const AuthenticationManager = require('../../../../app/src/Features/Authentication/AuthenticationManager')
 const Settings = require('@overleaf/settings')
+const InstitutionsAPI = require('../../../../app/src/Features/Institutions/InstitutionsAPI')
 const UserCreator = require('../../../../app/src/Features/User/UserCreator')
 const UserGetter = require('../../../../app/src/Features/User/UserGetter')
 const UserUpdater = require('../../../../app/src/Features/User/UserUpdater')
@@ -178,9 +179,8 @@ class UserHelper {
 
     // hash password and delete plaintext if set
     if (attributes.password) {
-      attributes.hashedPassword = await AuthenticationManager.promises.hashPassword(
-        attributes.password
-      )
+      attributes.hashedPassword =
+        await AuthenticationManager.promises.hashPassword(attributes.password)
       delete attributes.password
     }
 
@@ -239,7 +239,10 @@ class UserHelper {
     const loginPath = Settings.enableLegacyLogin ? '/login/legacy' : '/login'
     await userHelper.getCsrfToken()
     const response = await userHelper.request.post(loginPath, {
-      json: userData,
+      json: {
+        'g-recaptcha-response': 'valid',
+        ...userData,
+      },
     })
     if (response.statusCode !== 200 || response.body.redir !== '/project') {
       const error = new Error('login failed')
@@ -336,6 +339,9 @@ class UserHelper {
       },
     }
     await UserUpdater.promises.updateUser(query, update)
+    await InstitutionsAPI.promises.addAffiliation(userId, email, {
+      confirmedAt: date,
+    })
   }
 
   async changeConfirmedToNotificationPeriod(

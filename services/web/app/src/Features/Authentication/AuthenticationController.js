@@ -7,8 +7,8 @@ const Metrics = require('@overleaf/metrics')
 const logger = require('@overleaf/logger')
 const querystring = require('querystring')
 const Settings = require('@overleaf/settings')
-const basicAuth = require('basic-auth-connect')
-const crypto = require('crypto')
+const basicAuth = require('basic-auth')
+const tsscmp = require('tsscmp')
 const UserHandler = require('../User/UserHandler')
 const UserSessionsManager = require('../User/UserSessionsManager')
 const SessionStoreManager = require('../../infrastructure/SessionStoreManager')
@@ -23,10 +23,25 @@ const AnalyticsRegistrationSourceHelper = require('../Analytics/AnalyticsRegistr
 const {
   acceptsJson,
 } = require('../../infrastructure/RequestContentTypeDetection')
+const { ParallelLoginError } = require('./AuthenticationErrors')
 
 function send401WithChallenge(res) {
   res.setHeader('WWW-Authenticate', 'OverleafLogin')
   res.sendStatus(401)
+}
+
+function checkCredentials(userDetailsMap, user, password) {
+  const expectedPassword = userDetailsMap.get(user)
+  const userExists = userDetailsMap.has(user) && expectedPassword // user exists with a non-null password
+  const isValid = userExists && tsscmp(expectedPassword, password)
+  if (!isValid) {
+    logger.err({ user }, 'invalid login details')
+  }
+  Metrics.inc('security.http-auth.check-credentials', 1, {
+    path: userExists ? 'known-user' : 'unknown-user',
+    status: isValid ? 'pass' : 'fail',
+  })
+  return isValid
 }
 
 const AuthenticationController = {
@@ -67,6 +82,7 @@ const AuthenticationController = {
       }
       if (user) {
         // `user` is either a user object or false
+        AuthenticationController.setAuditInfo(req, { method: 'Password login' })
         return AuthenticationController.finishLogin(user, req, res, next)
       } else {
         if (info.redir != null) {
@@ -74,7 +90,13 @@ const AuthenticationController = {
         } else {
           res.status(info.status || 200)
           delete info.status
-          return res.json({ message: info })
+          const body = { message: info }
+          const { errorReason } = info
+          if (errorReason) {
+            body.errorReason = errorReason
+            delete info.errorReason
+          }
+          return res.json(body)
         }
       }
     })(req, res, next)
@@ -84,6 +106,8 @@ const AuthenticationController = {
     if (user === false) {
       return res.redirect('/login')
     } // OAuth2 'state' mismatch
+
+    const auditInfo = AuthenticationController.getAuditInfo(req)
 
     const anonymousAnalyticsId = req.session.analyticsId
     const isNewUser = req.session.justRegistered || false
@@ -114,20 +138,27 @@ const AuthenticationController = {
           AuthenticationController._getRedirectFromSession(req) || '/project'
         _loginAsyncHandlers(req, user, anonymousAnalyticsId, isNewUser)
         const userId = user._id
-        UserAuditLogHandler.addEntry(userId, 'login', userId, req.ip, err => {
-          if (err) {
-            return next(err)
-          }
-          _afterLoginSessionSetup(req, user, function (err) {
+        UserAuditLogHandler.addEntry(
+          userId,
+          'login',
+          userId,
+          req.ip,
+          auditInfo,
+          err => {
             if (err) {
               return next(err)
             }
-            AuthenticationController._clearRedirectFromSession(req)
-            AnalyticsRegistrationSourceHelper.clearSource(req.session)
-            AnalyticsRegistrationSourceHelper.clearInbound(req.session)
-            AsyncFormHelper.redirect(req, res, redir)
-          })
-        })
+            _afterLoginSessionSetup(req, user, function (err) {
+              if (err) {
+                return next(err)
+              }
+              AuthenticationController._clearRedirectFromSession(req)
+              AnalyticsRegistrationSourceHelper.clearSource(req.session)
+              AnalyticsRegistrationSourceHelper.clearInbound(req.session)
+              AsyncFormHelper.redirect(req, res, redir)
+            })
+          }
+        )
       }
     )
   },
@@ -164,9 +195,22 @@ const AuthenticationController = {
             password,
             function (error, user) {
               if (error != null) {
+                if (error instanceof ParallelLoginError) {
+                  return done(null, false, { status: 429 })
+                }
                 return done(error)
               }
-              if (user != null) {
+              if (
+                user &&
+                AuthenticationController.captchaRequiredForLogin(req, user)
+              ) {
+                done(null, false, {
+                  text: req.i18n.translate('cannot_verify_user_not_robot'),
+                  type: 'error',
+                  errorReason: 'cannot_verify_user_not_robot',
+                  status: 400,
+                })
+              } else if (user) {
                 // async actions
                 done(null, user)
               } else {
@@ -183,6 +227,30 @@ const AuthenticationController = {
         })
       }
     )
+  },
+
+  captchaRequiredForLogin(req, user) {
+    switch (AuthenticationController.getAuditInfo(req).captcha) {
+      case 'disabled':
+        return false
+      case 'solved':
+        return false
+      case 'skipped': {
+        let required = false
+        if (user.lastFailedLogin) {
+          const requireCaptchaUntil =
+            user.lastFailedLogin.getTime() +
+            Settings.elevateAccountSecurityAfterFailedLogin
+          required = requireCaptchaUntil >= Date.now()
+        }
+        Metrics.inc('force_captcha_on_login', 1, {
+          status: required ? 'yes' : 'no',
+        })
+        return required
+      }
+      default:
+        throw new Error('captcha middleware missing in handler chain')
+    }
   },
 
   ipMatchCheck(req, user) {
@@ -335,21 +403,35 @@ const AuthenticationController = {
   },
 
   requireBasicAuth: function (userDetails) {
-    return basicAuth(function (user, pass) {
-      const expectedPassword = userDetails[user]
-      const isValid =
-        expectedPassword &&
-        expectedPassword.length === pass.length &&
-        crypto.timingSafeEqual(Buffer.from(expectedPassword), Buffer.from(pass))
-      if (!isValid) {
-        logger.err({ user }, 'invalid login details')
+    const userDetailsMap = new Map(Object.entries(userDetails))
+    return function (req, res, next) {
+      const credentials = basicAuth(req)
+      if (
+        !credentials ||
+        !checkCredentials(userDetailsMap, credentials.name, credentials.pass)
+      ) {
+        send401WithChallenge(res)
+        Metrics.inc('security.http-auth', 1, { status: 'reject' })
+      } else {
+        Metrics.inc('security.http-auth', 1, { status: 'accept' })
+        next()
       }
-      return isValid
-    })
+    }
   },
 
   requirePrivateApiAuth() {
     return AuthenticationController.requireBasicAuth(Settings.httpAuthUsers)
+  },
+
+  setAuditInfo(req, info) {
+    if (!req.__authAuditInfo) {
+      req.__authAuditInfo = {}
+    }
+    Object.assign(req.__authAuditInfo, info)
+  },
+
+  getAuditInfo(req) {
+    return req.__authAuditInfo || {}
   },
 
   setRedirectInSession(req, value) {
@@ -492,7 +574,17 @@ function _afterLoginSessionSetup(req, user, callback) {
           return callback(err)
         }
         UserSessionsManager.trackSession(user, req.sessionID, function () {})
-        callback(null)
+        if (!req.deviceHistory) {
+          // Captcha disabled or SSO-based login.
+          return callback()
+        }
+        req.deviceHistory.add(user.email)
+        req.deviceHistory
+          .serialize(req.res)
+          .catch(err => {
+            logger.err({ err }, 'cannot serialize deviceHistory')
+          })
+          .finally(() => callback())
       })
     })
   })

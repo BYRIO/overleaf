@@ -7,6 +7,7 @@ const tk = require('timekeeper')
 const MockRequest = require('../helpers/MockRequest')
 const MockResponse = require('../helpers/MockResponse')
 const { ObjectId } = require('mongodb')
+const AuthenticationErrors = require('../../../../app/src/Features/Authentication/AuthenticationErrors')
 
 describe('AuthenticationController', function () {
   beforeEach(function () {
@@ -32,6 +33,7 @@ describe('AuthenticationController', function () {
 
     this.AuthenticationController = SandboxedModule.require(modulePath, {
       requires: {
+        './AuthenticationErrors': AuthenticationErrors,
         '../User/UserAuditLogHandler': (this.UserAuditLogHandler = {
           addEntry: sinon.stub().yields(null),
         }),
@@ -58,10 +60,12 @@ describe('AuthenticationController', function () {
           identifyUser: sinon.stub(),
           getIdsFromSession: sinon.stub().returns({ userId: this.user._id }),
         }),
-        '../../infrastructure/SessionStoreManager': (this.SessionStoreManager = {}),
+        '../../infrastructure/SessionStoreManager': (this.SessionStoreManager =
+          {}),
         '@overleaf/settings': (this.Settings = {
           siteUrl: 'http://www.foo.bar',
           httpAuthUsers: this.httpAuthUsers,
+          elevateAccountSecurityAfterFailedLogin: 90 * 24 * 60 * 60 * 1000,
         }),
         passport: (this.passport = {
           authenticate: sinon.stub().returns(sinon.stub()),
@@ -78,13 +82,14 @@ describe('AuthenticationController', function () {
           ipMatcherAffiliation: sinon.stub().returns({ create: sinon.stub() }),
         }),
         '../../models/User': { User: this.UserModel },
-        '../../../../modules/oauth2-server/app/src/Oauth2Server': (this.Oauth2Server = {
-          Request: sinon.stub(),
-          Response: sinon.stub(),
-          server: {
-            authenticate: sinon.stub(),
-          },
-        }),
+        '../../../../modules/oauth2-server/app/src/Oauth2Server':
+          (this.Oauth2Server = {
+            Request: sinon.stub(),
+            Response: sinon.stub(),
+            server: {
+              authenticate: sinon.stub(),
+            },
+          }),
         '../Helpers/UrlHelper': (this.UrlHelper = {
           getSafeRedirectPath: sinon.stub(),
         }),
@@ -252,7 +257,7 @@ describe('AuthenticationController', function () {
           this.next
         )
         this.res.json.callCount.should.equal(1)
-        this.res.json.calledWith({ message: this.info }).should.equal(true)
+        this.res.json.should.have.been.calledWith({ message: this.info })
         expect(this.res.json.lastCall.args[0].redir != null).to.equal(false)
       })
     })
@@ -271,6 +276,7 @@ describe('AuthenticationController', function () {
           postLoginRedirect: '/path/to/redir/to',
         },
       }
+      this.req.__authAuditInfo = { captcha: 'disabled' }
       this.cb = sinon.stub()
     })
 
@@ -323,22 +329,103 @@ describe('AuthenticationController', function () {
           .stub()
           .callsArgWith(2, null, this.user)
         this.req.sessionID = Math.random()
-        this.AuthenticationController.doPassportLogin(
-          this.req,
-          this.req.body.email,
-          this.req.body.password,
-          this.cb
-        )
       })
 
-      it('should attempt to authorise the user', function () {
-        this.AuthenticationManager.authenticate
-          .calledWith({ email: this.email.toLowerCase() }, this.password)
-          .should.equal(true)
+      describe('happy path', function () {
+        beforeEach(function () {
+          this.AuthenticationController.doPassportLogin(
+            this.req,
+            this.req.body.email,
+            this.req.body.password,
+            this.cb
+          )
+        })
+        it('should attempt to authorise the user', function () {
+          this.AuthenticationManager.authenticate
+            .calledWith({ email: this.email.toLowerCase() }, this.password)
+            .should.equal(true)
+        })
+
+        it("should establish the user's session", function () {
+          this.cb.calledWith(null, this.user).should.equal(true)
+        })
       })
 
-      it("should establish the user's session", function () {
-        this.cb.calledWith(null, this.user).should.equal(true)
+      describe('when authenticate flags a parallel login', function () {
+        beforeEach(function () {
+          this.AuthenticationManager.authenticate = sinon
+            .stub()
+            .callsArgWith(2, new AuthenticationErrors.ParallelLoginError())
+          this.AuthenticationController.doPassportLogin(
+            this.req,
+            this.req.body.email,
+            this.req.body.password,
+            this.cb
+          )
+        })
+
+        it('should send a 429', function () {
+          this.cb.should.have.been.calledWith(null, false, { status: 429 })
+        })
+      })
+
+      describe('with a user having a recent failed login ', function () {
+        beforeEach(function () {
+          this.user.lastFailedLogin = new Date()
+        })
+
+        describe('with captcha disabled', function () {
+          beforeEach(function () {
+            this.req.__authAuditInfo.captcha = 'disabled'
+            this.AuthenticationController.doPassportLogin(
+              this.req,
+              this.req.body.email,
+              this.req.body.password,
+              this.cb
+            )
+          })
+
+          it('should let the user log in', function () {
+            this.cb.should.have.been.calledWith(null, this.user)
+          })
+        })
+
+        describe('with a solved captcha', function () {
+          beforeEach(function () {
+            this.req.__authAuditInfo.captcha = 'solved'
+            this.AuthenticationController.doPassportLogin(
+              this.req,
+              this.req.body.email,
+              this.req.body.password,
+              this.cb
+            )
+          })
+
+          it('should let the user log in', function () {
+            this.cb.should.have.been.calledWith(null, this.user)
+          })
+        })
+
+        describe('with a skipped captcha', function () {
+          beforeEach(function () {
+            this.req.__authAuditInfo.captcha = 'skipped'
+            this.AuthenticationController.doPassportLogin(
+              this.req,
+              this.req.body.email,
+              this.req.body.password,
+              this.cb
+            )
+          })
+
+          it('should request a captcha', function () {
+            this.cb.should.have.been.calledWith(null, false, {
+              text: 'cannot_verify_user_not_robot',
+              type: 'error',
+              errorReason: 'cannot_verify_user_not_robot',
+              status: 400,
+            })
+          })
+        })
       })
     })
 
@@ -413,7 +500,8 @@ describe('AuthenticationController', function () {
     describe('when the user is not logged in', function () {
       beforeEach(function () {
         this.req.session = {}
-        this.AuthenticationController._redirectToLoginOrRegisterPage = sinon.stub()
+        this.AuthenticationController._redirectToLoginOrRegisterPage =
+          sinon.stub()
         this.req.query = {}
         this.SessionManager.isUserLoggedIn = sinon.stub().returns(false)
         this.middleware(this.req, this.res, this.next)
@@ -455,7 +543,8 @@ describe('AuthenticationController', function () {
           regenerate: sinon.stub().yields(),
         }
         this.req.user = this.user
-        this.AuthenticationController._redirectToLoginOrRegisterPage = sinon.stub()
+        this.AuthenticationController._redirectToLoginOrRegisterPage =
+          sinon.stub()
         this.req.query = {}
         this.SessionStoreManager.hasValidationToken = sinon
           .stub()
@@ -477,7 +566,7 @@ describe('AuthenticationController', function () {
 
   describe('requireOauth', function () {
     beforeEach(function () {
-      this.res.send = sinon.stub()
+      this.res.json = sinon.stub()
       this.res.status = sinon.stub().returns(this.res)
       this.res.sendStatus = sinon.stub()
       this.middleware = this.AuthenticationController.requireOauth()
@@ -644,8 +733,8 @@ describe('AuthenticationController', function () {
         this.req.headers = {
           authorization: `Basic ${Buffer.from('user:nope').toString('base64')}`,
         }
-        this.req.end = status => {
-          expect(status).to.equal('Unauthorized')
+        this.req.sendStatus = status => {
+          expect(status).to.equal(401)
           done()
         }
         this.middleware(this.req, this.req)
@@ -657,8 +746,8 @@ describe('AuthenticationController', function () {
             'base64'
           )}`,
         }
-        this.req.end = status => {
-          expect(status).to.equal('Unauthorized')
+        this.req.sendStatus = status => {
+          expect(status).to.equal(401)
           done()
         }
         this.middleware(this.req, this.req)
@@ -670,8 +759,45 @@ describe('AuthenticationController', function () {
             'base64'
           )}`,
         }
-        this.req.end = status => {
-          expect(status).to.equal('Unauthorized')
+        this.req.sendStatus = status => {
+          expect(status).to.equal(401)
+          done()
+        }
+        this.middleware(this.req, this.req)
+      })
+
+      it('should fail with empty user and password of "undefined"', function (done) {
+        this.req.headers = {
+          authorization: `Basic ${Buffer.from(`:undefined`).toString(
+            'base64'
+          )}`,
+        }
+        this.req.sendStatus = status => {
+          expect(status).to.equal(401)
+          done()
+        }
+        this.middleware(this.req, this.req)
+      })
+
+      it('should fail with empty user and empty password', function (done) {
+        this.req.headers = {
+          authorization: `Basic ${Buffer.from(`:`).toString('base64')}`,
+        }
+        this.req.sendStatus = status => {
+          expect(status).to.equal(401)
+          done()
+        }
+        this.middleware(this.req, this.req)
+      })
+
+      it('should fail with a user that is not a valid property', function (done) {
+        this.req.headers = {
+          authorization: `Basic ${Buffer.from(
+            `constructor:[Function ]`
+          ).toString('base64')}`,
+        }
+        this.req.sendStatus = status => {
+          expect(status).to.equal(401)
           done()
         }
         this.middleware(this.req, this.req)
@@ -1146,6 +1272,25 @@ describe('AuthenticationController', function () {
         )
         expect(this.next).to.have.been.calledWith(theError)
         expect(this.req.login).to.not.have.been.called
+      })
+
+      it('should pass along auditInfo when present', function () {
+        this.AuthenticationController.setAuditInfo(this.req, {
+          method: 'Login',
+        })
+        this.AuthenticationController.finishLogin(
+          this.user,
+          this.req,
+          this.res,
+          this.next
+        )
+        expect(this.UserAuditLogHandler.addEntry).to.have.been.calledWith(
+          this.user._id,
+          'login',
+          this.user._id,
+          '42.42.42.42',
+          { method: 'Login' }
+        )
       })
     })
 

@@ -26,8 +26,9 @@ function PdfHybridDownloadButton() {
         download
         href={pdfDownloadUrl || '#'}
         target="_blank"
+        style={{ pointerEvents: 'auto' }}
       >
-        <Icon type="download" modifier="fw" />
+        <Icon type="download" fw />
       </Button>
     </OverlayTrigger>
   )

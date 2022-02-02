@@ -1,39 +1,44 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 import PropTypes from 'prop-types'
 import useScopeValue from '../hooks/use-scope-value'
 
 const ProjectContext = createContext()
 
-ProjectContext.Provider.propTypes = {
-  value: PropTypes.shape({
-    _id: PropTypes.string.isRequired,
-    name: PropTypes.string.isRequired,
-    rootDoc_id: PropTypes.string,
-    members: PropTypes.arrayOf(
-      PropTypes.shape({
-        _id: PropTypes.string.isRequired,
-      })
-    ),
-    invites: PropTypes.arrayOf(
-      PropTypes.shape({
-        _id: PropTypes.string.isRequired,
-      })
-    ),
-    features: PropTypes.shape({
-      collaborators: PropTypes.number,
-      compileGroup: PropTypes.oneOf(['alpha', 'standard', 'priority']),
-      trackChangesVisible: PropTypes.bool,
-    }),
-    publicAccesLevel: PropTypes.string,
-    tokens: PropTypes.shape({
-      readOnly: PropTypes.string,
-      readAndWrite: PropTypes.string,
-    }),
-    owner: PropTypes.shape({
+export const projectShape = {
+  _id: PropTypes.string.isRequired,
+  name: PropTypes.string.isRequired,
+  rootDocId: PropTypes.string,
+  members: PropTypes.arrayOf(
+    PropTypes.shape({
       _id: PropTypes.string.isRequired,
-      email: PropTypes.string.isRequired,
-    }),
+    })
+  ),
+  invites: PropTypes.arrayOf(
+    PropTypes.shape({
+      _id: PropTypes.string.isRequired,
+    })
+  ),
+  features: PropTypes.shape({
+    collaborators: PropTypes.number,
+    compileGroup: PropTypes.oneOf(['alpha', 'standard', 'priority']),
+    trackChangesVisible: PropTypes.bool,
+    references: PropTypes.bool,
+    mendeley: PropTypes.bool,
+    zotero: PropTypes.bool,
   }),
+  publicAccessLevel: PropTypes.string,
+  tokens: PropTypes.shape({
+    readOnly: PropTypes.string,
+    readAndWrite: PropTypes.string,
+  }),
+  owner: PropTypes.shape({
+    _id: PropTypes.string.isRequired,
+    email: PropTypes.string.isRequired,
+  }),
+}
+
+ProjectContext.Provider.propTypes = {
+  value: PropTypes.shape(projectShape),
 }
 
 export function useProjectContext(propTypes) {
@@ -55,12 +60,53 @@ export function useProjectContext(propTypes) {
   return context
 }
 
+// when the provider is created the project is still not added to the Angular
+// scope. A few props are populated to prevent errors in existing React
+// components
+const projectFallback = {
+  _id: window.project_id,
+  name: '',
+  features: {},
+}
+
 export function ProjectProvider({ children }) {
   const [project] = useScopeValue('project', true)
 
-  // when the provider is created the project is still not added to the Angular scope.
-  // Name is also populated to prevent errors in existing React components
-  const value = project || { _id: window.project_id, name: '', features: {} }
+  const {
+    _id,
+    name,
+    rootDoc_id: rootDocId,
+    members,
+    invites,
+    features,
+    publicAccesLevel: publicAccessLevel,
+    tokens,
+    owner,
+  } = project || projectFallback
+
+  const value = useMemo(() => {
+    return {
+      _id,
+      name,
+      rootDocId,
+      members,
+      invites,
+      features,
+      publicAccessLevel,
+      tokens,
+      owner,
+    }
+  }, [
+    _id,
+    name,
+    rootDocId,
+    members,
+    invites,
+    features,
+    publicAccessLevel,
+    tokens,
+    owner,
+  ])
 
   return (
     <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>

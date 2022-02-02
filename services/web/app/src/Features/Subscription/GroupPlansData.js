@@ -8,6 +8,9 @@ const Path = require('path')
 // It is also used by scripts/recurly/sync_recurly.rb, which will make sure
 // Recurly has a plan configured for all the groups, and that the prices are
 // up to date with the data in groups.json.
+// Alternatively, scripts/recurly/get_recurly_group_prices.rb can be used to
+// fetch pricing data and generate a groups.json using the current Recurly
+// prices
 const data = fs.readFileSync(
   Path.join(__dirname, '/../../../templates/plans/groups.json')
 )
@@ -40,7 +43,7 @@ for (const [usage, planData] of Object.entries(groups)) {
           planCode
         )} - Group Account (${size} licenses) - ${capitalize(usage)}`,
         hideFromUsers: true,
-        price: groups[usage][planCode].USD[size],
+        price_in_cents: groups[usage][planCode].USD[size].price_in_cents,
         annual: true,
         features: Settings.features[planCode],
         groupPlan: true,

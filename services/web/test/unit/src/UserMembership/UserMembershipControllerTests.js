@@ -46,11 +46,13 @@ describe('UserMembershipController', function () {
         _id: 'mock-member-id-1',
         email: 'mock-email-1@foo.com',
         last_logged_in_at: '2020-08-09T12:43:11.467Z',
+        last_active_at: '2021-08-09T12:43:11.467Z',
       },
       {
         _id: 'mock-member-id-2',
         email: 'mock-email-2@foo.com',
         last_logged_in_at: '2020-05-20T10:41:11.407Z',
+        last_active_at: '2021-05-20T10:41:11.407Z',
       },
     ]
 
@@ -278,9 +280,6 @@ describe('UserMembershipController', function () {
       this.req.entity = this.subscription
       this.req.entityConfig = EntityConfigs.groupManagers
       this.res = new MockResponse()
-      this.res.contentType = sinon.stub()
-      this.res.header = sinon.stub()
-      this.res.send = sinon.stub()
       return this.UserMembershipController.exportCsv(this.req, this.res)
     })
 
@@ -293,21 +292,21 @@ describe('UserMembershipController', function () {
     })
 
     it('should set the correct content type on the request', function () {
-      return assertCalledWith(this.res.contentType, 'text/csv')
+      return assertCalledWith(this.res.contentType, 'text/csv; charset=utf-8')
     })
 
     it('should name the exported csv file', function () {
       return assertCalledWith(
         this.res.header,
         'Content-Disposition',
-        'attachment; filename=Group.csv'
+        'attachment; filename="Group.csv"'
       )
     })
 
     it('should export the correct csv', function () {
       return assertCalledWith(
         this.res.send,
-        '"email","last_logged_in_at"\n"mock-email-1@foo.com","2020-08-09T12:43:11.467Z"\n"mock-email-2@foo.com","2020-05-20T10:41:11.407Z"'
+        '"email","last_logged_in_at","last_active_at"\n"mock-email-1@foo.com","2020-08-09T12:43:11.467Z","2021-08-09T12:43:11.467Z"\n"mock-email-2@foo.com","2020-05-20T10:41:11.407Z","2021-05-20T10:41:11.407Z"'
       )
     })
   })

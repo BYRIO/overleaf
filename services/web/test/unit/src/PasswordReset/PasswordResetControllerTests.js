@@ -57,10 +57,12 @@ describe('PasswordResetController', function () {
         '../Authentication/AuthenticationManager': {
           validatePassword: sinon.stub().returns(null),
         },
-        '../Authentication/AuthenticationController': (this.AuthenticationController = {
-          getLoggedInUserId: sinon.stub(),
-          finishLogin: sinon.stub(),
-        }),
+        '../Authentication/AuthenticationController':
+          (this.AuthenticationController = {
+            getLoggedInUserId: sinon.stub(),
+            finishLogin: sinon.stub(),
+            setAuditInfo: sinon.stub(),
+          }),
         '../User/UserGetter': (this.UserGetter = {
           promises: {
             getUser: sinon.stub(),

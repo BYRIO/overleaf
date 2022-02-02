@@ -1,18 +1,7 @@
-/* eslint-disable
-    no-unused-vars,
-*/
-// TODO: This file was created by bulk-decaffeinate.
-// Fix any style issues and re-enable lint.
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 const metrics = require('@overleaf/metrics')
 metrics.initialize('chat')
-const logger = require('logger-sharelatex')
+const logger = require('@overleaf/logger')
 logger.initialize('chat')
-const Path = require('path')
 const express = require('express')
 const bodyParser = require('body-parser')
 const app = express()

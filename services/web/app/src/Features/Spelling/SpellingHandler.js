@@ -1,85 +1,29 @@
-const request = require('request')
-const Settings = require('@overleaf/settings')
 const OError = require('@overleaf/o-error')
-
-const TIMEOUT = 10 * 1000
+const Metrics = require('@overleaf/metrics')
+const { promisifyAll } = require('../../util/promises')
+const LearnedWordsManager = require('./LearnedWordsManager')
 
 module.exports = {
   getUserDictionary(userId, callback) {
-    const url = `${Settings.apis.spelling.url}/user/${userId}`
-    request.get({ url: url, timeout: TIMEOUT }, (error, response) => {
+    const timer = new Metrics.Timer('spelling_get_dict')
+    LearnedWordsManager.getLearnedWords(userId, (error, words) => {
       if (error) {
         return callback(
           OError.tag(error, 'error getting user dictionary', { error, userId })
         )
       }
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        return callback(
-          new OError(
-            'Non-success code from spelling API when getting user dictionary',
-            { userId, statusCode: response.statusCode }
-          )
-        )
-      }
-
-      callback(null, JSON.parse(response.body))
+      timer.done()
+      callback(null, words)
     })
   },
 
   deleteWordFromUserDictionary(userId, word, callback) {
-    const url = `${Settings.apis.spelling.url}/user/${userId}/unlearn`
-    request.post(
-      {
-        url: url,
-        json: {
-          word,
-        },
-        timeout: TIMEOUT,
-      },
-      (error, response) => {
-        if (error) {
-          return callback(
-            OError.tag(error, 'error deleting word from user dictionary', {
-              userId,
-              word,
-            })
-          )
-        }
-
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          return callback(
-            new OError(
-              'Non-success code from spelling API when removing word from user dictionary',
-              { userId, word, statusCode: response.statusCode }
-            )
-          )
-        }
-
-        callback()
-      }
-    )
+    LearnedWordsManager.unlearnWord(userId, word, callback)
   },
 
   deleteUserDictionary(userId, callback) {
-    const url = `${Settings.apis.spelling.url}/user/${userId}`
-    request.delete({ url: url, timeout: TIMEOUT }, (error, response) => {
-      if (error) {
-        return callback(
-          OError.tag(error, 'error deleting user dictionary', { userId })
-        )
-      }
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        return callback(
-          new OError(
-            'Non-success code from spelling API when removing user dictionary',
-            { userId, statusCode: response.statusCode }
-          )
-        )
-      }
-
-      callback()
-    })
+    LearnedWordsManager.deleteUsersLearnedWords(userId, callback)
   },
 }
+
+module.exports.promises = promisifyAll(module.exports)

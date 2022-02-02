@@ -42,28 +42,17 @@ function _pastReconfirmDate(lastDayToReconfirm) {
   return moment(lastDayToReconfirm).isBefore()
 }
 
-function _emailInReconfirmNotificationPeriod(
-  lastDayToReconfirm,
-  cachedPastReconfirmDate
-) {
+function _emailInReconfirmNotificationPeriod(cachedLastDayToReconfirm) {
   const globalReconfirmPeriod = settings.reconfirmNotificationDays
 
-  if (!globalReconfirmPeriod || !lastDayToReconfirm) return false
+  if (!globalReconfirmPeriod || !cachedLastDayToReconfirm) return false
 
-  const notificationStarts = moment(lastDayToReconfirm).subtract(
+  const notificationStarts = moment(cachedLastDayToReconfirm).subtract(
     globalReconfirmPeriod,
     'days'
   )
 
-  let inNotificationPeriod = moment().isAfter(notificationStarts)
-
-  if (!inNotificationPeriod && cachedPastReconfirmDate) {
-    // show notification if cached date is past,
-    // even if non-cached date is not past
-    inNotificationPeriod = true
-  }
-
-  return inNotificationPeriod
+  return moment().isAfter(notificationStarts)
 }
 
 async function getUserFullEmails(userId) {
@@ -196,6 +185,28 @@ const UserGetter = {
     db.users.find(query, { projection }).toArray(callback)
   },
 
+  getInstitutionUsersByHostname(hostname, callback) {
+    const projection = {
+      _id: 1,
+      email: 1,
+      emails: 1,
+      samlIdentifiers: 1,
+    }
+    UserGetter.getUsersByHostname(hostname, projection, (err, users) => {
+      if (err) return callback(err)
+
+      users.forEach(user => {
+        user.emails = decorateFullEmails(
+          user.email,
+          user.emails,
+          [],
+          user.samlIdentifiers || []
+        )
+      })
+      callback(null, users)
+    })
+  },
+
   getUsers(query, projection, callback) {
     try {
       query = normalizeMultiQuery(query)
@@ -235,20 +246,31 @@ const decorateFullEmails = (
         role,
         department,
         licence,
+        cached_confirmed_at: cachedConfirmedAt,
+        cached_reconfirmed_at: cachedReconfirmedAt,
         past_reconfirm_date: cachedPastReconfirmDate,
+        entitlement: cachedEntitlement,
         portal,
       } = affiliation
       const lastDayToReconfirm = _lastDayToReconfirm(emailData, institution)
+      let { last_day_to_reconfirm: cachedLastDayToReconfirm } = affiliation
+      if (institution.ssoEnabled && !emailData.samlProviderId) {
+        // only SSO linked emails are reconfirmed at SSO institutions
+        cachedLastDayToReconfirm = undefined
+      }
       const pastReconfirmDate = _pastReconfirmDate(lastDayToReconfirm)
       const inReconfirmNotificationPeriod = _emailInReconfirmNotificationPeriod(
-        lastDayToReconfirm,
-        cachedPastReconfirmDate
+        cachedLastDayToReconfirm
       )
       emailData.affiliation = {
         institution,
         inferred,
         inReconfirmNotificationPeriod,
         lastDayToReconfirm,
+        cachedConfirmedAt,
+        cachedLastDayToReconfirm,
+        cachedReconfirmedAt,
+        cachedEntitlement,
         cachedPastReconfirmDate,
         pastReconfirmDate,
         role,
@@ -264,9 +286,8 @@ const decorateFullEmails = (
       )
     }
 
-    emailData.emailHasInstitutionLicence = InstitutionsHelper.emailHasLicence(
-      emailData
-    )
+    emailData.emailHasInstitutionLicence =
+      InstitutionsHelper.emailHasLicence(emailData)
   })
 
   return emailsData

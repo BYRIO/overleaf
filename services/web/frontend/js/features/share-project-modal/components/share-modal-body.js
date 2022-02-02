@@ -11,7 +11,6 @@ import { useSplitTestContext } from '../../../shared/context/split-test-context'
 import { Row } from 'react-bootstrap'
 import PropTypes from 'prop-types'
 import RecaptchaConditions from '../../../shared/components/recaptcha-conditions'
-import * as eventTracking from '../../../infrastructure/event-tracking'
 
 export default function ShareModalBody() {
   const { isAdmin } = useShareProjectContext()
@@ -19,11 +18,7 @@ export default function ShareModalBody() {
     splitTestVariants: PropTypes.object,
   })
 
-  eventTracking.sendMB('share-modal-opened', {
-    splitTestVariant: splitTestVariants['null-test-share-modal'],
-  })
-
-  const project = useProjectContext()
+  const { invites, members } = useProjectContext()
 
   switch (splitTestVariants['project-share-modal-paywall']) {
     case 'new-copy-top':
@@ -40,7 +35,7 @@ export default function ShareModalBody() {
 
           <OwnerInfo />
 
-          {project.members.map(member =>
+          {members.map(member =>
             isAdmin ? (
               <EditMember key={member._id} member={member} />
             ) : (
@@ -48,7 +43,7 @@ export default function ShareModalBody() {
             )
           )}
 
-          {project.invites.map(invite => (
+          {invites.map(invite => (
             <Invite key={invite._id} invite={invite} isAdmin={isAdmin} />
           ))}
 
@@ -69,7 +64,7 @@ export default function ShareModalBody() {
         <>
           <OwnerInfo />
 
-          {project.members.map(member =>
+          {members.map(member =>
             isAdmin ? (
               <EditMember key={member._id} member={member} />
             ) : (
@@ -77,7 +72,7 @@ export default function ShareModalBody() {
             )
           )}
 
-          {project.invites.map(invite => (
+          {invites.map(invite => (
             <Invite key={invite._id} invite={invite} isAdmin={isAdmin} />
           ))}
 
@@ -104,7 +99,7 @@ export default function ShareModalBody() {
 
           <OwnerInfo />
 
-          {project.members.map(member =>
+          {members.map(member =>
             isAdmin ? (
               <EditMember key={member._id} member={member} />
             ) : (
@@ -112,7 +107,7 @@ export default function ShareModalBody() {
             )
           )}
 
-          {project.invites.map(invite => (
+          {invites.map(invite => (
             <Invite key={invite._id} invite={invite} isAdmin={isAdmin} />
           ))}
 

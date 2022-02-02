@@ -1,5 +1,5 @@
-import { render } from '@testing-library/react'
 import FileTreeContext from '../../../../../frontend/js/features/file-tree/components/file-tree-context'
+import { renderWithEditorContext } from '../../../helpers/render-with-context'
 
 export default (children, options = {}) => {
   let { contextProps = {}, ...renderOptions } = options
@@ -7,13 +7,13 @@ export default (children, options = {}) => {
     projectId: '123abc',
     rootFolder: [
       {
+        _id: 'root-folder-id',
+        name: 'rootFolder',
         docs: [],
         fileRefs: [],
         folders: [],
       },
     ],
-    hasWritePermissions: true,
-    userHasFeature: () => true,
     refProviders: {},
     reindexReferences: () => {
       console.log('reindex references')
@@ -27,8 +27,25 @@ export default (children, options = {}) => {
     onSelect: () => {},
     ...contextProps,
   }
-  return render(
-    <FileTreeContext {...contextProps}>{children}</FileTreeContext>,
+  const {
+    refProviders,
+    reindexReferences,
+    setRefProviderEnabled,
+    setStartedFreeTrial,
+    onSelect,
+    ...editorContextProps
+  } = contextProps
+  return renderWithEditorContext(
+    <FileTreeContext
+      refProviders={refProviders}
+      reindexReferences={reindexReferences}
+      setRefProviderEnabled={setRefProviderEnabled}
+      setStartedFreeTrial={setStartedFreeTrial}
+      onSelect={onSelect}
+    >
+      {children}
+    </FileTreeContext>,
+    editorContextProps,
     renderOptions
   )
 }

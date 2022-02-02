@@ -2,6 +2,8 @@ import React, { useEffect } from 'react'
 import PropTypes from 'prop-types'
 
 import withErrorBoundary from '../../../infrastructure/error-boundary'
+import { useProjectContext } from '../../../shared/context/project-context'
+import { useFileTreeData } from '../../../shared/context/file-tree-data-context'
 import FileTreeContext from './file-tree-context'
 import FileTreeDraggablePreviewLayer from './file-tree-draggable-preview-layer'
 import FileTreeFolderList from './file-tree-folder-list'
@@ -12,18 +14,12 @@ import FileTreeModalError from './modals/file-tree-modal-error'
 import FileTreeContextMenu from './file-tree-context-menu'
 import FileTreeError from './file-tree-error'
 
-import { useFileTreeMutable } from '../contexts/file-tree-mutable'
 import { useDroppable } from '../contexts/file-tree-draggable'
 
 import { useFileTreeSocketListener } from '../hooks/file-tree-socket-listener'
 import FileTreeModalCreateFile from './modals/file-tree-modal-create-file'
 
 const FileTreeRoot = React.memo(function FileTreeRoot({
-  projectId,
-  rootFolder,
-  rootDocId,
-  hasWritePermissions,
-  userHasFeature,
   refProviders,
   reindexReferences,
   setRefProviderEnabled,
@@ -32,7 +28,9 @@ const FileTreeRoot = React.memo(function FileTreeRoot({
   onInit,
   isConnected,
 }) {
-  const isReady = projectId && rootFolder
+  const { _id: projectId } = useProjectContext(projectContextPropTypes)
+  const { fileTreeData } = useFileTreeData()
+  const isReady = projectId && fileTreeData
 
   useEffect(() => {
     if (isReady) onInit()
@@ -41,15 +39,10 @@ const FileTreeRoot = React.memo(function FileTreeRoot({
 
   return (
     <FileTreeContext
-      projectId={projectId}
-      hasWritePermissions={hasWritePermissions}
-      userHasFeature={userHasFeature}
       refProviders={refProviders}
       setRefProviderEnabled={setRefProviderEnabled}
       setStartedFreeTrial={setStartedFreeTrial}
       reindexReferences={reindexReferences}
-      rootFolder={rootFolder}
-      rootDocId={rootDocId}
       onSelect={onSelect}
     >
       {isConnected ? null : <div className="disconnected-overlay" />}
@@ -68,7 +61,7 @@ const FileTreeRoot = React.memo(function FileTreeRoot({
 
 function FileTreeRootFolder() {
   useFileTreeSocketListener()
-  const { fileTreeData } = useFileTreeMutable()
+  const { fileTreeData } = useFileTreeData()
 
   const { isOver, dropRef } = useDroppable(fileTreeData._id)
 
@@ -90,18 +83,17 @@ function FileTreeRootFolder() {
 }
 
 FileTreeRoot.propTypes = {
-  projectId: PropTypes.string,
-  rootFolder: PropTypes.array,
-  rootDocId: PropTypes.string,
-  hasWritePermissions: PropTypes.bool.isRequired,
   onSelect: PropTypes.func.isRequired,
   onInit: PropTypes.func.isRequired,
   isConnected: PropTypes.bool.isRequired,
   setRefProviderEnabled: PropTypes.func.isRequired,
-  userHasFeature: PropTypes.func.isRequired,
   setStartedFreeTrial: PropTypes.func.isRequired,
   reindexReferences: PropTypes.func.isRequired,
   refProviders: PropTypes.object.isRequired,
+}
+
+const projectContextPropTypes = {
+  _id: PropTypes.string.isRequired,
 }
 
 export default withErrorBoundary(FileTreeRoot, FileTreeError)

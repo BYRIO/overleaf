@@ -1,15 +1,16 @@
+import PropTypes from 'prop-types'
 import { useTranslation } from 'react-i18next'
 
 import Icon from '../../../shared/components/icon'
 import TooltipButton from '../../../shared/components/tooltip-button'
 
-import { useFileTreeMainContext } from '../contexts/file-tree-main'
+import { useEditorContext } from '../../../shared/context/editor-context'
 import { useFileTreeActionable } from '../contexts/file-tree-actionable'
 
 function FileTreeToolbar() {
-  const { hasWritePermissions } = useFileTreeMainContext()
+  const { permissionsLevel } = useEditorContext(editorContextPropTypes)
 
-  if (!hasWritePermissions) return null
+  if (permissionsLevel === 'readOnly') return null
 
   return (
     <div className="toolbar toolbar-filetree">
@@ -17,6 +18,10 @@ function FileTreeToolbar() {
       <FileTreeToolbarRight />
     </div>
   )
+}
+
+const editorContextPropTypes = {
+  permissionsLevel: PropTypes.oneOf(['readOnly', 'readAndWrite', 'owner']),
 }
 
 function FileTreeToolbarLeft() {
@@ -37,25 +42,21 @@ function FileTreeToolbarLeft() {
         description={t('new_file')}
         onClick={startCreatingDocOrFile}
       >
-        <Icon type="file" modifier="fw" accessibilityLabel={t('new_file')} />
+        <Icon type="file" fw accessibilityLabel={t('new_file')} />
       </TooltipButton>
       <TooltipButton
         id="new_folder"
         description={t('new_folder')}
         onClick={startCreatingFolder}
       >
-        <Icon
-          type="folder"
-          modifier="fw"
-          accessibilityLabel={t('new_folder')}
-        />
+        <Icon type="folder" fw accessibilityLabel={t('new_folder')} />
       </TooltipButton>
       <TooltipButton
         id="upload"
         description={t('upload')}
         onClick={startUploadingDocOrFile}
       >
-        <Icon type="upload" modifier="fw" accessibilityLabel={t('upload')} />
+        <Icon type="upload" fw accessibilityLabel={t('upload')} />
       </TooltipButton>
     </div>
   )
@@ -63,12 +64,8 @@ function FileTreeToolbarLeft() {
 
 function FileTreeToolbarRight() {
   const { t } = useTranslation()
-  const {
-    canRename,
-    canDelete,
-    startRenaming,
-    startDeleting,
-  } = useFileTreeActionable()
+  const { canRename, canDelete, startRenaming, startDeleting } =
+    useFileTreeActionable()
 
   if (!canRename && !canDelete) {
     return null
@@ -82,7 +79,7 @@ function FileTreeToolbarRight() {
           description={t('rename')}
           onClick={startRenaming}
         >
-          <Icon type="pencil" modifier="fw" accessibilityLabel={t('rename')} />
+          <Icon type="pencil" fw accessibilityLabel={t('rename')} />
         </TooltipButton>
       ) : null}
       {canDelete ? (
@@ -91,7 +88,7 @@ function FileTreeToolbarRight() {
           description={t('delete')}
           onClick={startDeleting}
         >
-          <Icon type="trash-o" modifier="fw" accessibilityLabel={t('delete')} />
+          <Icon type="trash-o" fw accessibilityLabel={t('delete')} />
         </TooltipButton>
       ) : null}
     </div>

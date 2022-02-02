@@ -134,6 +134,7 @@ export default App.controller(
       $timeout(() => $scope.$broadcast('review-panel:layout'))
     )
 
+    // TODO: unused?
     $scope.$on('review-panel:sizes', (e, sizes) =>
       $scope.$broadcast('editor:set-scroll-size', sizes)
     )
@@ -150,9 +151,8 @@ export default App.controller(
     $scope.$watch('project.members', function (members) {
       $scope.reviewPanel.formattedProjectMembers = {}
       if (($scope.project != null ? $scope.project.owner : undefined) != null) {
-        $scope.reviewPanel.formattedProjectMembers[
-          $scope.project.owner._id
-        ] = formatUser($scope.project.owner)
+        $scope.reviewPanel.formattedProjectMembers[$scope.project.owner._id] =
+          formatUser($scope.project.owner)
       }
       if (
         ($scope.project != null ? $scope.project.members : undefined) != null
@@ -170,9 +170,8 @@ export default App.controller(
                 )
               }
               result.push(
-                ($scope.reviewPanel.formattedProjectMembers[
-                  member._id
-                ] = formatUser(member))
+                ($scope.reviewPanel.formattedProjectMembers[member._id] =
+                  formatUser(member))
               )
             } else {
               result.push(undefined)
@@ -205,6 +204,7 @@ export default App.controller(
         getChangeTracker(doc_id).removeChangeIds(change_ids)
       } else {
         $scope.$broadcast('changes:accept', change_ids)
+        dispatchReviewPanelEvent('changes:accept', change_ids)
       }
       updateEntries(doc_id)
       return $scope.$apply(function () {})
@@ -531,6 +531,11 @@ export default App.controller(
       // For now, not worrying about entry panels for rich text
       if (!$scope.editor.showRichText) {
         $scope.$broadcast('review-panel:recalculate-screen-positions')
+        dispatchReviewPanelEvent(
+          'recalculate-screen-positions',
+          getDocEntries($scope.editor.open_doc_id)
+        )
+
         return $scope.$broadcast('review-panel:layout')
       }
     })
@@ -609,6 +614,9 @@ export default App.controller(
         }
 
         $scope.$broadcast('review-panel:recalculate-screen-positions')
+
+        dispatchReviewPanelEvent('recalculate-screen-positions', entries)
+
         return $scope.$broadcast('review-panel:layout')
       }
     )
@@ -632,11 +640,14 @@ export default App.controller(
         `/project/${$scope.project_id}/doc/${$scope.editor.open_doc_id}/changes/accept`,
         { change_ids, _csrf: window.csrfToken }
       )
-      return $scope.$broadcast('changes:accept', change_ids)
+      $scope.$broadcast('changes:accept', change_ids)
+      dispatchReviewPanelEvent('changes:accept', change_ids)
     }
 
-    const _doRejectChanges = change_ids =>
+    const _doRejectChanges = change_ids => {
       $scope.$broadcast('changes:reject', change_ids)
+      dispatchReviewPanelEvent('changes:reject', change_ids)
+    }
 
     const bulkAccept = function () {
       _doAcceptChanges($scope.reviewPanel.selectedEntryIds.slice())
@@ -696,6 +707,8 @@ export default App.controller(
         return
       }
       $scope.$broadcast('comment:select_line')
+      dispatchReviewPanelEvent('comment:select_line')
+
       if (!$scope.ui.reviewPanelOpen) {
         $scope.toggleReviewPanel()
       }
@@ -707,6 +720,7 @@ export default App.controller(
 
     $scope.startNewComment = function () {
       $scope.$broadcast('comment:select_line')
+      dispatchReviewPanelEvent('comment:select_line')
       return $timeout(() => $scope.$broadcast('review-panel:layout'))
     }
 
@@ -724,6 +738,11 @@ export default App.controller(
       const thread = getThread(thread_id)
       thread.submitting = true
       $scope.$broadcast('comment:add', thread_id, offset, length)
+      dispatchReviewPanelEvent('comment:add', {
+        threadId: thread_id,
+        offset,
+        length,
+      })
       $http
         .post(`/project/${$scope.project_id}/thread/${thread_id}/messages`, {
           content,
@@ -735,6 +754,7 @@ export default App.controller(
             'Sorry, there was a problem submitting your comment'
           )
         )
+      // TODO: unused?
       $scope.$broadcast('editor:clearSelection')
       $timeout(() => $scope.$broadcast('review-panel:layout'))
       eventTracking.sendMB('rp-new-comment', { size: content.length })
@@ -812,7 +832,8 @@ export default App.controller(
       thread.resolved_by_user = formatUser(user)
       thread.resolved_at = new Date().toISOString()
       $scope.reviewPanel.resolvedThreadIds[thread_id] = true
-      return $scope.$broadcast('comment:resolve_threads', [thread_id])
+      $scope.$broadcast('comment:resolve_threads', [thread_id])
+      dispatchReviewPanelEvent('comment:resolve_threads', [thread_id])
     }
 
     function _onCommentReopened(thread_id) {
@@ -824,13 +845,15 @@ export default App.controller(
       delete thread.resolved_by_user
       delete thread.resolved_at
       delete $scope.reviewPanel.resolvedThreadIds[thread_id]
-      return $scope.$broadcast('comment:unresolve_thread', thread_id)
+      $scope.$broadcast('comment:unresolve_thread', thread_id)
+      dispatchReviewPanelEvent('comment:unresolve_thread', thread_id)
     }
 
     function _onThreadDeleted(thread_id) {
       delete $scope.reviewPanel.resolvedThreadIds[thread_id]
       delete $scope.reviewPanel.commentThreads[thread_id]
-      return $scope.$broadcast('comment:remove', thread_id)
+      $scope.$broadcast('comment:remove', thread_id)
+      dispatchReviewPanelEvent('comment:remove', thread_id)
     }
 
     function _onCommentEdited(thread_id, comment_id, content) {
@@ -900,8 +923,8 @@ export default App.controller(
 
     $scope.toggleFullTCStateCollapse = function () {
       if ($scope.project.features.trackChanges) {
-        return ($scope.reviewPanel.fullTCStateCollapsed = !$scope.reviewPanel
-          .fullTCStateCollapsed)
+        return ($scope.reviewPanel.fullTCStateCollapsed =
+          !$scope.reviewPanel.fullTCStateCollapsed)
       } else {
         _sendAnalytics()
         return $scope.openTrackChangesUpgradeModal()
@@ -1169,6 +1192,7 @@ export default App.controller(
               thread.resolved_by_user = formatUser(thread.resolved_by_user)
               $scope.reviewPanel.resolvedThreadIds[thread_id] = true
               $scope.$broadcast('comment:resolve_threads', [thread_id])
+              dispatchReviewPanelEvent('comment:resolve_threads', [thread_id])
             }
           }
           $scope.reviewPanel.commentThreads = threads
@@ -1230,5 +1254,43 @@ export default App.controller(
         controller: 'TrackChangesUpgradeModalController',
         scope: $scope.$new(),
       })
+
+    // listen for events from the CodeMirror 6 track changes extension
+    window.addEventListener('editor:event', event => {
+      const { type, payload } = event.detail
+
+      switch (type) {
+        case 'line-height': {
+          $scope.reviewPanel.rendererData.lineHeight = payload
+          $scope.$broadcast('review-panel:layout')
+          break
+        }
+
+        case 'track-changes:changed': {
+          $scope.$broadcast('editor:track-changes:changed')
+          break
+        }
+
+        case 'track-changes:visibility_changed': {
+          $scope.$broadcast('editor:track-changes:visibility_changed')
+          break
+        }
+
+        case 'focus:changed': {
+          const { from, to, empty } = payload
+          $scope.$broadcast('editor:focus:changed', from, to, !empty)
+          break
+        }
+      }
+    })
   }
 )
+
+// send events to the CodeMirror 6 track changes extension
+const dispatchReviewPanelEvent = (type, payload) => {
+  window.dispatchEvent(
+    new CustomEvent('review-panel:event', {
+      detail: { type, payload },
+    })
+  )
+}

@@ -11,13 +11,8 @@ const LINKING_TIMEOUT = 60000
 const RELINK_TIMEOUT = 10000
 
 export default function useDetachLayout() {
-  const {
-    role,
-    setRole,
-    broadcastEvent,
-    addEventHandler,
-    deleteEventHandler,
-  } = useDetachContext()
+  const { role, setRole, broadcastEvent, addEventHandler, deleteEventHandler } =
+    useDetachContext()
 
   // isLinking: when the tab expects to be linked soon (e.g. on detach)
   const [isLinking, setIsLinking] = useState(false)
@@ -33,6 +28,15 @@ export default function useDetachLayout() {
     }
     setIsLinking(false)
   }, [isLinked, setIsLinking])
+
+  useEffect(() => {
+    if (debugPdfDetach) {
+      console.log('Effect', { role, isLinked })
+    }
+    if (role === 'detached' && isLinked) {
+      eventTracking.sendMB('project-layout-detached')
+    }
+  }, [role, isLinked])
 
   useEffect(() => {
     if (uiTimeoutRef.current) {
@@ -75,7 +79,7 @@ export default function useDetachLayout() {
     setRole('detacher')
     setIsLinking(true)
 
-    window.open(buildUrlWithDetachRole('detached'), '_blank')
+    window.open(buildUrlWithDetachRole('detached').toString(), '_blank')
   }, [setRole, setIsLinking])
 
   const handleEventForDetacherFromDetached = useCallback(

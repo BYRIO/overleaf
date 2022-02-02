@@ -69,6 +69,7 @@ describe('Authentication', function () {
         operation: 'login',
         ipAddress: '127.0.0.1',
         initiatorId: ObjectId(user.id),
+        info: { method: 'Password login', captcha: 'solved' },
       })
     })
   })
@@ -85,6 +86,7 @@ describe('Authentication', function () {
         json: {
           email: user.email,
           password: 'foo-bar-baz',
+          'g-recaptcha-response': 'valid',
         },
       })
       expect(statusCode).to.equal(401)

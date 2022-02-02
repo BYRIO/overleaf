@@ -2,7 +2,7 @@
     camelcase,
 */
 const metrics = require('@overleaf/metrics')
-const logger = require('logger-sharelatex')
+const logger = require('@overleaf/logger')
 const settings = require('@overleaf/settings')
 const WebsocketController = require('./WebsocketController')
 const HttpController = require('./HttpController')
@@ -12,17 +12,6 @@ const bodyParser = require('body-parser')
 const base64id = require('base64id')
 const { UnexpectedArgumentsError } = require('./Errors')
 const Joi = require('@hapi/joi')
-
-const basicAuth = require('basic-auth-connect')
-const httpAuth = basicAuth(function (user, pass) {
-  const isValid =
-    user === settings.internal.realTime.user &&
-    pass === settings.internal.realTime.pass
-  if (!isValid) {
-    logger.err({ user, pass }, 'invalid login details')
-  }
-  return isValid
-})
 
 const HOSTNAME = require('os').hostname()
 
@@ -122,15 +111,13 @@ module.exports = Router = {
 
     app.post(
       '/project/:project_id/message/:message',
-      httpAuth,
       bodyParser.json({ limit: '5mb' }),
       HttpApiController.sendMessage
     )
 
-    app.post('/drain', httpAuth, HttpApiController.startDrain)
+    app.post('/drain', HttpApiController.startDrain)
     app.post(
       '/client/:client_id/disconnect',
-      httpAuth,
       HttpApiController.disconnectClient
     )
 

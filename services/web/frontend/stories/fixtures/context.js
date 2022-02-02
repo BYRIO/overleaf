@@ -11,7 +11,18 @@ export function setupContext() {
     $scope = {
       ...window._ide.$scope,
       user: window.user,
-      project: {},
+      project: {
+        features: {},
+        rootFolder: [
+          {
+            _id: 'root-folder-id',
+            name: 'rootFolder',
+            docs: [],
+            folders: [],
+            fileRefs: [],
+          },
+        ],
+      },
       $watch: () => {},
       $applyAsync: () => {},
       $broadcast: () => {},
@@ -23,7 +34,6 @@ export function setupContext() {
         pdfViewer: 'js',
       },
       toggleHistory: () => {},
-      rootFolder: { type: 'folder', children: [] },
     }
   }
   window._ide = {

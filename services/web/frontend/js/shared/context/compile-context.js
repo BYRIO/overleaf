@@ -12,11 +12,7 @@ import useScopeValueSetterOnly from '../hooks/use-scope-value-setter-only'
 import usePersistedState from '../hooks/use-persisted-state'
 import useAbortController from '../hooks/use-abort-controller'
 import DocumentCompiler from '../../features/pdf-preview/util/compiler'
-import {
-  send,
-  sendMB,
-  sendMBSampled,
-} from '../../infrastructure/event-tracking'
+import { send, sendMBSampled } from '../../infrastructure/event-tracking'
 import {
   buildLogEntryAnnotations,
   handleOutputFiles,
@@ -68,9 +64,7 @@ export function CompileProvider({ children }) {
 
   const { hasPremiumCompile, isProjectOwner } = useEditorContext()
 
-  const project = useProjectContext()
-
-  const projectId = project._id
+  const { _id: projectId, rootDocId } = useProjectContext()
 
   // whether a compile is in progress
   const [compiling, setCompiling] = useState(false)
@@ -87,9 +81,8 @@ export function CompileProvider({ children }) {
   const [pdfViewer] = useScopeValue('settings.pdfViewer')
 
   // the URL for downloading the PDF
-  const [pdfDownloadUrl, setPdfDownloadUrl] = useScopeValueSetterOnly(
-    'pdf.downloadUrl'
-  )
+  const [pdfDownloadUrl, setPdfDownloadUrl] =
+    useScopeValueSetterOnly('pdf.downloadUrl')
 
   // the URL for loading the PDF in the preview pane
   const [pdfUrl, setPdfUrl] = useScopeValueSetterOnly('pdf.url')
@@ -134,7 +127,7 @@ export function CompileProvider({ children }) {
   const [position, setPosition] = usePersistedState(`pdf.position.${projectId}`)
 
   // whether autocompile is switched on
-  const [autoCompile, _setAutoCompile] = usePersistedState(
+  const [autoCompile, setAutoCompile] = usePersistedState(
     `autocompile_enabled:${projectId}`,
     false,
     true
@@ -174,7 +167,8 @@ export function CompileProvider({ children }) {
   // the document compiler
   const [compiler] = useState(() => {
     return new DocumentCompiler({
-      project,
+      projectId,
+      rootDocId,
       setChangedAt,
       setCompiling,
       setData,
@@ -201,15 +195,6 @@ export function CompileProvider({ children }) {
       setUncompiled(changedAt > 0)
     }
   }, [setUncompiled, changedAt])
-
-  // record changes to the autocompile setting
-  const setAutoCompile = useCallback(
-    value => {
-      _setAutoCompile(value)
-      sendMB('autocompile-setting-changed', { value })
-    },
-    [_setAutoCompile]
-  )
 
   // always compile the PDF once after opening the project, after the doc has loaded
   useEffect(() => {
@@ -283,9 +268,6 @@ export function CompileProvider({ children }) {
               'editor-click-feature',
               'compile-timeout'
             )
-            sendMB('paywall-prompt', {
-              'paywall-type': 'compile-timeout',
-            })
           }
           break
 
@@ -293,7 +275,6 @@ export function CompileProvider({ children }) {
           if (!data.options.isAutoCompileOnLoad) {
             setError('autocompile-disabled')
             setAutoCompile(false)
-            sendMB('autocompile-rate-limited', { hasPremiumCompile })
           }
           break
 
@@ -380,10 +361,17 @@ export function CompileProvider({ children }) {
   const clearCache = useCallback(() => {
     setClearingCache(true)
 
-    return compiler.clearCache().finally(() => {
-      setClearingCache(false)
-    })
-  }, [compiler, setClearingCache])
+    return compiler
+      .clearCache()
+      .then(() => {
+        setFileList(undefined)
+        setPdfDownloadUrl(undefined)
+        setPdfUrl(undefined)
+      })
+      .finally(() => {
+        setClearingCache(false)
+      })
+  }, [compiler, setPdfDownloadUrl, setPdfUrl])
 
   // clear the cache then run a compile, triggered by a menu item
   const recompileFromScratch = useCallback(() => {

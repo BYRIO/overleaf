@@ -1,84 +1,71 @@
-/* eslint-disable
-    camelcase,
-    max-len,
-    no-unused-vars,
-*/
-// TODO: This file was created by bulk-decaffeinate.
-// Fix any style issues and re-enable lint.
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
-let Router
 const MessageHttpController = require('./Features/Messages/MessageHttpController')
 const { ObjectId } = require('./mongodb')
 
-module.exports = Router = {
+module.exports = {
   route(app) {
-    app.param('project_id', function (req, res, next, project_id) {
-      if (ObjectId.isValid(project_id)) {
-        return next()
+    app.param('projectId', function (req, res, next, projectId) {
+      if (ObjectId.isValid(projectId)) {
+        next()
       } else {
-        return res.status(400).send('Invalid project_id')
+        res.status(400).send('Invalid projectId')
       }
     })
 
-    app.param('thread_id', function (req, res, next, thread_id) {
-      if (ObjectId.isValid(thread_id)) {
-        return next()
+    app.param('threadId', function (req, res, next, threadId) {
+      if (ObjectId.isValid(threadId)) {
+        next()
       } else {
-        return res.status(400).send('Invalid thread_id')
+        res.status(400).send('Invalid threadId')
       }
     })
 
     // These are for backwards compatibility
     app.get(
-      '/room/:project_id/messages',
+      '/room/:projectId/messages',
       MessageHttpController.getGlobalMessages
     )
     app.post(
-      '/room/:project_id/messages',
+      '/room/:projectId/messages',
       MessageHttpController.sendGlobalMessage
     )
 
     app.get(
-      '/project/:project_id/messages',
+      '/project/:projectId/messages',
       MessageHttpController.getGlobalMessages
     )
     app.post(
-      '/project/:project_id/messages',
+      '/project/:projectId/messages',
       MessageHttpController.sendGlobalMessage
     )
 
     app.post(
-      '/project/:project_id/thread/:thread_id/messages',
+      '/project/:projectId/thread/:threadId/messages',
       MessageHttpController.sendThreadMessage
     )
-    app.get('/project/:project_id/threads', MessageHttpController.getAllThreads)
+    app.get('/project/:projectId/threads', MessageHttpController.getAllThreads)
 
     app.post(
-      '/project/:project_id/thread/:thread_id/messages/:message_id/edit',
+      '/project/:projectId/thread/:threadId/messages/:messageId/edit',
       MessageHttpController.editMessage
     )
     app.delete(
-      '/project/:project_id/thread/:thread_id/messages/:message_id',
+      '/project/:projectId/thread/:threadId/messages/:messageId',
       MessageHttpController.deleteMessage
     )
 
     app.post(
-      '/project/:project_id/thread/:thread_id/resolve',
+      '/project/:projectId/thread/:threadId/resolve',
       MessageHttpController.resolveThread
     )
     app.post(
-      '/project/:project_id/thread/:thread_id/reopen',
+      '/project/:projectId/thread/:threadId/reopen',
       MessageHttpController.reopenThread
     )
     app.delete(
-      '/project/:project_id/thread/:thread_id',
+      '/project/:projectId/thread/:threadId',
       MessageHttpController.deleteThread
     )
 
-    return app.get('/status', (req, res, next) => res.send('chat is alive'))
+    app.get('/status', (req, res, next) => res.send('chat is alive'))
   },
 }

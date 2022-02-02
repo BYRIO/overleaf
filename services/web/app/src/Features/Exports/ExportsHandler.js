@@ -13,7 +13,7 @@
  * DS207: Consider shorter variations of null checks
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-let ExportsHandler, self
+let ExportsHandler
 const OError = require('@overleaf/o-error')
 const ProjectGetter = require('../Project/ProjectGetter')
 const ProjectHistoryHandler = require('../Project/ProjectHistoryHandler')
@@ -27,25 +27,28 @@ let request = require('request')
 request = request.defaults()
 settings = require('@overleaf/settings')
 
-module.exports = ExportsHandler = self = {
+module.exports = ExportsHandler = {
   exportProject(export_params, callback) {
     if (callback == null) {
       callback = function () {}
     }
-    return self._buildExport(export_params, function (err, export_data) {
-      if (err != null) {
-        return callback(err)
-      }
-      return self._requestExport(export_data, function (err, body) {
+    return ExportsHandler._buildExport(
+      export_params,
+      function (err, export_data) {
         if (err != null) {
           return callback(err)
         }
-        export_data.v1_id = body.exportId
-        export_data.message = body.message
-        // TODO: possibly store the export data in Mongo
-        return callback(null, export_data)
-      })
-    })
+        return ExportsHandler._requestExport(export_data, function (err, body) {
+          if (err != null) {
+            return callback(err)
+          }
+          export_data.v1_id = body.exportId
+          export_data.message = body.message
+          // TODO: possibly store the export data in Mongo
+          return callback(null, export_data)
+        })
+      }
+    )
   },
 
   _buildExport(export_params, callback) {
@@ -97,7 +100,7 @@ module.exports = ExportsHandler = self = {
             if (error != null) {
               return callback(error)
             }
-            return self._requestVersion(project_id, cb)
+            return ExportsHandler._requestVersion(project_id, cb)
           }
         )
       },

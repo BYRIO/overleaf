@@ -7,7 +7,7 @@
 const Metrics = require('@overleaf/metrics')
 Metrics.initialize('docstore')
 const Settings = require('@overleaf/settings')
-const logger = require('logger-sharelatex')
+const logger = require('@overleaf/logger')
 const express = require('express')
 const bodyParser = require('body-parser')
 const {
@@ -45,8 +45,6 @@ app.param('doc_id', function (req, res, next, docId) {
     return next(new Error('invalid doc id'))
   }
 })
-
-Metrics.injectMetricsRoute(app)
 
 app.get('/project/:project_id/doc-deleted', HttpController.getAllDeletedDocs)
 app.get('/project/:project_id/doc', HttpController.getAllDocs)
@@ -106,13 +104,17 @@ if (!module.parent) {
   mongodb
     .waitForDb()
     .then(() => {
-      app.listen(port, host, function (err) {
+      const server = app.listen(port, host, function (err) {
         if (err) {
           logger.fatal({ err }, `Cannot bind to ${host}:${port}. Exiting.`)
           process.exit(1)
         }
         return logger.info(`Docstore starting up, listening on ${host}:${port}`)
       })
+      server.timeout = 120000
+      server.keepAliveTimeout = 5000
+      server.requestTimeout = 60000
+      server.headersTimeout = 60000
     })
     .catch(err => {
       logger.fatal({ err }, 'Cannot connect to mongo. Exiting.')

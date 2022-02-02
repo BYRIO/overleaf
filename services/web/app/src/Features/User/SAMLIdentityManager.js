@@ -223,9 +223,8 @@ async function getUser(providerId, externalUserId) {
 }
 
 async function redundantSubscription(userId, providerId, providerName) {
-  const subscription = await SubscriptionLocator.promises.getUserIndividualSubscription(
-    userId
-  )
+  const subscription =
+    await SubscriptionLocator.promises.getUserIndividualSubscription(userId)
 
   if (subscription) {
     await NotificationsBuilder.promises
@@ -340,12 +339,6 @@ async function updateEntitlement(
   }
   // update v2 user
   await User.updateOne(query, update).exec()
-  // update v1 affiliations record
-  if (hasEntitlement) {
-    await InstitutionsAPI.promises.addEntitlement(userId, institutionEmail)
-  } else {
-    await InstitutionsAPI.promises.removeEntitlement(userId, institutionEmail)
-  }
 }
 
 function entitlementAttributeMatches(entitlementAttribute, entitlementMatcher) {

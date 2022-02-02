@@ -13,7 +13,7 @@ describe('ClsiManager', function () {
       _getServerId: sinon.stub(),
     }
     this.ClsiStateManager = {
-      computeHash: sinon.stub().callsArgWith(2, null, '01234567890abcdef'),
+      computeHash: sinon.stub().returns('01234567890abcdef'),
     }
     this.ClsiFormatChecker = {
       checkRecoursesForProblems: sinon.stub().callsArgWith(1),
@@ -54,8 +54,8 @@ describe('ClsiManager', function () {
         },
         '../Project/ProjectEntityHandler': this.ProjectEntityHandler,
         '../Project/ProjectGetter': this.ProjectGetter,
-        '../DocumentUpdater/DocumentUpdaterHandler': this
-          .DocumentUpdaterHandler,
+        '../DocumentUpdater/DocumentUpdaterHandler':
+          this.DocumentUpdaterHandler,
         './ClsiCookieManager': () => this.ClsiCookieManager,
         './ClsiStateManager': this.ClsiStateManager,
         request: this.request,
@@ -645,13 +645,10 @@ describe('ClsiManager', function () {
 
     describe('with the incremental compile option', function () {
       beforeEach(function (done) {
+        this.project_state_hash = '01234567890abcdef'
         this.ClsiStateManager.computeHash = sinon
           .stub()
-          .callsArgWith(
-            2,
-            null,
-            (this.project_state_hash = '01234567890abcdef')
-          )
+          .returns(this.project_state_hash)
         this.DocumentUpdaterHandler.getProjectDocsIfMatch = sinon
           .stub()
           .callsArgWith(2, null, [
@@ -659,7 +656,7 @@ describe('ClsiManager', function () {
           ])
         this.ProjectEntityHandler.getAllDocPathsFromProject = sinon
           .stub()
-          .callsArgWith(1, null, { 'mock-doc-id-1': 'main.tex' })
+          .returns({ 'mock-doc-id-1': 'main.tex' })
         this.ClsiManager._buildRequest(
           this.project_id,
           {
@@ -732,13 +729,10 @@ describe('ClsiManager', function () {
 
       describe('when the root doc is set and not in the docupdater', function () {
         beforeEach(function (done) {
+          this.project_state_hash = '01234567890abcdef'
           this.ClsiStateManager.computeHash = sinon
             .stub()
-            .callsArgWith(
-              2,
-              null,
-              (this.project_state_hash = '01234567890abcdef')
-            )
+            .returns(this.project_state_hash)
           this.DocumentUpdaterHandler.getProjectDocsIfMatch = sinon
             .stub()
             .callsArgWith(2, null, [
@@ -746,7 +740,7 @@ describe('ClsiManager', function () {
             ])
           this.ProjectEntityHandler.getAllDocPathsFromProject = sinon
             .stub()
-            .callsArgWith(1, null, {
+            .returns({
               'mock-doc-id-1': 'main.tex',
               'mock-doc-id-2': '/chapters/chapter1.tex',
             })
@@ -1020,6 +1014,7 @@ describe('ClsiManager', function () {
                 file: 'rootfile.text',
                 image: undefined,
               },
+              json: true,
             },
             'node-1'
           )
@@ -1052,6 +1047,7 @@ describe('ClsiManager', function () {
               method: 'GET',
               url: `http://clsi.example.com/project/${this.project_id}/user/${this.user_id}/wordcount`,
               qs: { file: 'main.tex', image: undefined },
+              json: true,
             },
             'node-2'
           )
@@ -1082,6 +1078,7 @@ describe('ClsiManager', function () {
               method: 'GET',
               url: `http://clsi.example.com/project/${this.project_id}/user/${this.user_id}/wordcount`,
               qs: { file: 'main.tex', image: this.image },
+              json: true,
             },
             'node-3'
           )

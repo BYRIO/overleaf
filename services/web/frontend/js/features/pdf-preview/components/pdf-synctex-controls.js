@@ -14,6 +14,7 @@ import useIsMounted from '../../../shared/hooks/use-is-mounted'
 import useAbortController from '../../../shared/hooks/use-abort-controller'
 import useDetachState from '../../../shared/hooks/use-detach-state'
 import useDetachAction from '../../../shared/hooks/use-detach-action'
+import localStorage from '../../../infrastructure/local-storage'
 
 function GoToCodeButton({
   position,
@@ -26,6 +27,13 @@ function GoToCodeButton({
   const buttonClasses = classNames('synctex-control', {
     'detach-synctex-control': !!isDetachLayout,
   })
+
+  let buttonIcon = null
+  if (syncToCodeInFlight) {
+    buttonIcon = <Icon type="refresh" spin className="synctex-spin-icon" />
+  } else if (!isDetachLayout) {
+    buttonIcon = <Icon type="arrow-left" className="synctex-control-icon" />
+  }
 
   return (
     <OverlayTrigger
@@ -44,11 +52,7 @@ function GoToCodeButton({
         className={buttonClasses}
         aria-label={t('go_to_pdf_location_in_code')}
       >
-        {syncToCodeInFlight ? (
-          <Icon type="refresh" spin classes={{ icon: 'synctex-spin-icon' }} />
-        ) : (
-          <Icon type="arrow-left" classes={{ icon: 'synctex-control-icon' }} />
-        )}
+        {buttonIcon}
         {isDetachLayout ? <span>&nbsp;{t('show_in_code')}</span> : ''}
       </Button>
     </OverlayTrigger>
@@ -67,6 +71,13 @@ function GoToPdfButton({
     'detach-synctex-control': !!isDetachLayout,
   })
 
+  let buttonIcon = null
+  if (syncToPdfInFlight) {
+    buttonIcon = <Icon type="refresh" spin className="synctex-spin-icon" />
+  } else if (!isDetachLayout) {
+    buttonIcon = <Icon type="arrow-right" className="synctex-control-icon" />
+  }
+
   return (
     <OverlayTrigger
       placement={tooltipPlacement}
@@ -80,15 +91,11 @@ function GoToPdfButton({
         bsStyle="default"
         bsSize="xs"
         onClick={() => syncToPdf(cursorPosition)}
-        disabled={syncToPdfInFlight}
+        disabled={syncToPdfInFlight || !cursorPosition}
         className={buttonClasses}
         aria-label={t('go_to_code_location_in_pdf')}
       >
-        {syncToPdfInFlight ? (
-          <Icon type="refresh" spin classes={{ icon: 'synctex-spin-icon' }} />
-        ) : (
-          <Icon type="arrow-right" classes={{ icon: 'synctex-control-icon' }} />
-        )}
+        {buttonIcon}
         {isDetachLayout ? <span>&nbsp;{t('show_in_pdf')}</span> : ''}
       </Button>
     </OverlayTrigger>
@@ -102,15 +109,15 @@ function PdfSynctexControls() {
 
   const { detachRole } = useLayoutContext()
 
-  const {
-    clsiServerId,
-    pdfUrl,
-    pdfViewer,
-    position,
-    setHighlights,
-  } = useCompileContext()
+  const { clsiServerId, pdfUrl, pdfViewer, position, setHighlights } =
+    useCompileContext()
 
-  const [cursorPosition, setCursorPosition] = useState(null)
+  const [cursorPosition, setCursorPosition] = useState(() => {
+    const position = localStorage.getItem(
+      `doc.position.${ide.editorManager.getCurrentDocId()}`
+    )
+    return position ? position.cursorPosition : null
+  })
 
   const isMounted = useIsMounted()
 

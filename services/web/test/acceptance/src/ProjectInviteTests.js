@@ -143,6 +143,7 @@ const tryLoginUser = (user, callback) => {
         json: {
           email: user.email,
           password: user.password,
+          'g-recaptcha-response': 'valid',
         },
       },
       callback
@@ -563,10 +564,11 @@ describe('ProjectInviteTests', function () {
                           throw err
                         }
                         this.secondInvite = invite
-                        this.secondLink = CollaboratorsEmailHandler._buildInviteUrl(
-                          this.fakeProject,
-                          invite
-                        )
+                        this.secondLink =
+                          CollaboratorsEmailHandler._buildInviteUrl(
+                            this.fakeProject,
+                            invite
+                          )
                         cb()
                       }
                     )

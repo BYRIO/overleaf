@@ -17,8 +17,10 @@ describe('InstitutionsGetter', function () {
     this.InstitutionsGetter = SandboxedModule.require(modulePath, {
       requires: {
         '../User/UserGetter': this.UserGetter,
-        '../UserMembership/UserMembershipsHandler': (this.UserMembershipsHandler = {}),
-        '../UserMembership/UserMembershipEntityConfigs': (this.UserMembershipEntityConfigs = {}),
+        '../UserMembership/UserMembershipsHandler':
+          (this.UserMembershipsHandler = {}),
+        '../UserMembership/UserMembershipEntityConfigs':
+          (this.UserMembershipEntityConfigs = {}),
       },
     })
 
@@ -27,6 +29,7 @@ describe('InstitutionsGetter', function () {
       confirmedAt: new Date(),
       affiliation: {
         institution: { id: 456, confirmed: true },
+        cachedPastReconfirmDate: false,
         pastReconfirmDate: false,
       },
     }
@@ -34,6 +37,7 @@ describe('InstitutionsGetter', function () {
       confirmedAt: new Date('2000-01-01'),
       affiliation: {
         institution: { id: 135, confirmed: true },
+        cachedPastReconfirmDate: true,
         pastReconfirmDate: true,
       },
     }
@@ -42,6 +46,7 @@ describe('InstitutionsGetter', function () {
       affiliation: {
         licence: 'pro_plus',
         institution: { id: 777, confirmed: true },
+        cachedPastReconfirmDate: false,
         pastReconfirmDate: false,
       },
     }
@@ -50,6 +55,7 @@ describe('InstitutionsGetter', function () {
       affiliation: {
         licence: 'pro_plus',
         institution: { id: 888, confirmed: true },
+        cachedPastReconfirmDate: true,
         pastReconfirmDate: true,
       },
     }
@@ -57,35 +63,64 @@ describe('InstitutionsGetter', function () {
       confirmedAt: null,
       affiliation: {
         licence: 'pro_plus',
-        institution: { id: 123, confirmed: true, pastReconfirmDate: false },
+        institution: {
+          id: 123,
+          confirmed: true,
+          cachedPastReconfirmDate: false,
+          pastReconfirmDate: false,
+        },
       },
     }
     this.unconfirmedDomainLicensedAffiliation = {
       confirmedAt: new Date(),
       affiliation: {
         licence: 'pro_plus',
-        institution: { id: 789, confirmed: false, pastReconfirmDate: false },
+        institution: {
+          id: 789,
+          confirmed: false,
+          cachedPastReconfirmDate: false,
+          pastReconfirmDate: false,
+        },
       },
     }
     this.userEmails = [
       {
         confirmedAt: null,
         affiliation: {
-          institution: { id: 123, confirmed: true, pastReconfirmDate: false },
+          institution: {
+            id: 123,
+            confirmed: true,
+            cachedPastReconfirmDate: false,
+            pastReconfirmDate: false,
+          },
         },
       },
       this.confirmedAffiliation,
       this.confirmedAffiliation,
       this.confirmedAffiliationPastReconfirmation,
-      { confirmedAt: new Date(), affiliation: null, pastReconfirmDate: false },
       {
         confirmedAt: new Date(),
-        affiliation: { institution: null, pastReconfirmDate: false },
+        affiliation: null,
+        cachedPastReconfirmDate: false,
+        pastReconfirmDate: false,
       },
       {
         confirmedAt: new Date(),
         affiliation: {
-          institution: { id: 789, confirmed: false, pastReconfirmDate: false },
+          institution: null,
+          cachedPastReconfirmDate: false,
+          pastReconfirmDate: false,
+        },
+      },
+      {
+        confirmedAt: new Date(),
+        affiliation: {
+          institution: {
+            id: 789,
+            confirmed: false,
+            cachedPastReconfirmDate: false,
+            pastReconfirmDate: false,
+          },
         },
       },
     ]
@@ -94,17 +129,19 @@ describe('InstitutionsGetter', function () {
   describe('getCurrentInstitutionIds', function () {
     it('filters unconfirmed affiliations, those past reconfirmation, and returns only 1 result per institution', async function () {
       this.UserGetter.promises.getUserFullEmails.resolves(this.userEmails)
-      const institutions = await this.InstitutionsGetter.promises.getCurrentInstitutionIds(
-        this.userId
-      )
+      const institutions =
+        await this.InstitutionsGetter.promises.getCurrentInstitutionIds(
+          this.userId
+        )
       expect(institutions.length).to.equal(1)
       expect(institutions[0]).to.equal(456)
     })
     it('handles empty response', async function () {
       this.UserGetter.promises.getUserFullEmails.resolves([])
-      const institutions = await this.InstitutionsGetter.promises.getCurrentInstitutionIds(
-        this.userId
-      )
+      const institutions =
+        await this.InstitutionsGetter.promises.getCurrentInstitutionIds(
+          this.userId
+        )
       expect(institutions).to.deep.equal([])
     })
     it('handles errors', async function () {
@@ -131,9 +168,10 @@ describe('InstitutionsGetter', function () {
         this.unconfirmedDomainLicensedAffiliation,
         this.unconfirmedEmailLicensedAffiliation,
       ])
-      const institutions = await this.InstitutionsGetter.promises.getCurrentInstitutionsWithLicence(
-        this.userId
-      )
+      const institutions =
+        await this.InstitutionsGetter.promises.getCurrentInstitutionsWithLicence(
+          this.userId
+        )
       expect(institutions.map(institution => institution.id)).to.deep.equal([
         this.licencedAffiliation.affiliation.institution.id,
       ])

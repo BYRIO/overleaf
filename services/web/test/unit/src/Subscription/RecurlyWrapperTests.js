@@ -141,16 +141,14 @@ describe('RecurlyWrapper', function () {
     }
 
     tk.freeze(Date.now()) // freeze the time for these tests
-    return (this.RecurlyWrapper = RecurlyWrapper = SandboxedModule.require(
-      modulePath,
-      {
+    return (this.RecurlyWrapper = RecurlyWrapper =
+      SandboxedModule.require(modulePath, {
         requires: {
           '@overleaf/settings': this.settings,
           request: sinon.stub(),
           './Errors': SubscriptionErrors,
         },
-      }
-    ))
+      }))
   })
 
   afterEach(function () {
@@ -284,6 +282,37 @@ describe('RecurlyWrapper', function () {
     it('should return the updated account', function () {
       expect(this.recurlyAccount).to.exist
       this.recurlyAccount.account_code.should.equal('104')
+    })
+  })
+
+  describe('updateAccountEmailAddress, with invalid XML', function () {
+    beforeEach(function (done) {
+      this.recurlyAccountId = 'account-id-123'
+      this.newEmail = '\uD800@example.com'
+      this.apiRequest = sinon
+        .stub(this.RecurlyWrapper, 'apiRequest')
+        .callsFake((options, callback) => {
+          this.requestOptions = options
+          callback(null, {}, fixtures['accounts/104'])
+        })
+      done()
+    })
+
+    afterEach(function () {
+      return this.RecurlyWrapper.apiRequest.restore()
+    })
+
+    it('should produce an error', function (done) {
+      this.RecurlyWrapper.updateAccountEmailAddress(
+        this.recurlyAccountId,
+        this.newEmail,
+        (error, recurlyAccount) => {
+          expect(error).to.exist
+          expect(error.message.startsWith('Invalid character')).to.equal(true)
+          expect(this.apiRequest.called).to.equal(false)
+          done()
+        }
+      )
     })
   })
 

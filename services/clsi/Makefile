@@ -26,14 +26,23 @@ clean:
 	-$(DOCKER_COMPOSE_TEST_UNIT) down --rmi local
 	-$(DOCKER_COMPOSE_TEST_ACCEPTANCE) down --rmi local
 
+HERE=$(shell pwd)
+MONOREPO=$(shell cd ../../ && pwd)
+# Run the linting commands in the scope of the monorepo.
+# Eslint and prettier (plus some configs) are on the root.
+RUN_LINTING = docker run --rm -v $(MONOREPO):$(MONOREPO) -w $(HERE) node:14.18.3 npm run --silent
+
 format:
-	$(DOCKER_COMPOSE) run --rm test_unit npm run --silent format
+	$(RUN_LINTING) format
 
 format_fix:
-	$(DOCKER_COMPOSE) run --rm test_unit npm run --silent format:fix
+	$(RUN_LINTING) format:fix
 
 lint:
-	$(DOCKER_COMPOSE) run --rm test_unit npm run --silent lint
+	$(RUN_LINTING) lint
+
+lint_fix:
+	$(RUN_LINTING) lint:fix
 
 test: format lint test_unit test_acceptance
 
@@ -75,9 +84,23 @@ ifneq (,$(wildcard test/acceptance/js/scripts/pre-run))
 endif
 
 build:
+	docker pull gcr.io/overleaf-ops/$(PROJECT_NAME):$(BRANCH_NAME)-deps \
+		|| docker pull gcr.io/overleaf-ops/$(PROJECT_NAME):main-deps \
+		|| echo 'nothing cached'
+	docker build \
+	 	--pull \
+		--tag gcr.io/overleaf-ops/$(PROJECT_NAME):$(BRANCH_NAME)-deps \
+		--cache-from gcr.io/overleaf-ops/$(PROJECT_NAME):$(BRANCH_NAME)-deps \
+		--cache-from gcr.io/overleaf-ops/$(PROJECT_NAME):main-deps \
+		--target base \
+		--file Dockerfile \
+		../..
+
 	docker build --pull --tag ci/$(PROJECT_NAME):$(BRANCH_NAME)-$(BUILD_NUMBER) \
 		--tag gcr.io/overleaf-ops/$(PROJECT_NAME):$(BRANCH_NAME)-$(BUILD_NUMBER) \
-		.
+		--cache-from gcr.io/overleaf-ops/$(PROJECT_NAME):$(BRANCH_NAME)-deps \
+		--file Dockerfile \
+		../..
 
 tar:
 	$(DOCKER_COMPOSE) up tar
