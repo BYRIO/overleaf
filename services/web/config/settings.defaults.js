@@ -185,6 +185,9 @@ module.exports = {
       url: `http://${process.env.SPELLING_HOST || 'localhost'}:3005`,
       host: process.env.SPELLING_HOST,
     },
+    references: {
+      url: `http://${process.env.REFERENCES_HOST || 'localhost'}:3006`,
+    },
     trackchanges: {
       url: `http://${process.env.TRACK_CHANGES_HOST || 'localhost'}:3015`,
     },

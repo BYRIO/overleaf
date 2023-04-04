@@ -1,0 +1,23 @@
+name: Build & Publish Base Image
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  Build_Base_Image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+
+      - name: Run build Script
+        run: |
+          export GITHUB_RUN_ID=${{ github.run_id }}
+          echo ${DOCKER_CONFIG}
+          cd server-ce/
+          make build-base
+          make build-community
