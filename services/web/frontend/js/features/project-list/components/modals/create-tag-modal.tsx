@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Form, Modal } from 'react-bootstrap'
+import { Button, ControlLabel, Form, FormGroup, Modal } from 'react-bootstrap'
 import { useTranslation } from 'react-i18next'
 import { Tag } from '../../../../../../app/src/Features/Tags/types'
 import AccessibleModal from '../../../../shared/components/accessible-modal'
 import useAsync from '../../../../shared/hooks/use-async'
 import { useProjectListContext } from '../../context/project-list-context'
 import { useRefWithAutoFocus } from '../../../../shared/hooks/use-ref-with-auto-focus'
+import useSelectColor from '../../hooks/use-select-color'
 import { createTag } from '../../util/api'
 import { MAX_TAG_LENGTH } from '../../util/tag'
+import { ColorPicker } from '../color-picker/color-picker'
 
 type CreateTagModalProps = {
   id: string
   show: boolean
   onCreate: (tag: Tag) => void
   onClose: () => void
+  disableCustomColor?: boolean
 }
 
 export default function CreateTagModal({
@@ -21,8 +24,10 @@ export default function CreateTagModal({
   show,
   onCreate,
   onClose,
+  disableCustomColor,
 }: CreateTagModalProps) {
   const { tags } = useProjectListContext()
+  const { selectedColor } = useSelectColor()
   const { t } = useTranslation()
   const { isError, runAsync, status } = useAsync<Tag>()
   const { autoFocusedRef } = useRefWithAutoFocus<HTMLInputElement>()
@@ -32,11 +37,11 @@ export default function CreateTagModal({
 
   const runCreateTag = useCallback(() => {
     if (tagName) {
-      runAsync(createTag(tagName))
+      runAsync(createTag(tagName, selectedColor))
         .then(tag => onCreate(tag))
         .catch(console.error)
     }
-  }, [runAsync, tagName, onCreate])
+  }, [runAsync, tagName, selectedColor, onCreate])
 
   const handleSubmit = useCallback(
     e => {
@@ -65,20 +70,28 @@ export default function CreateTagModal({
   return (
     <AccessibleModal show animation onHide={onClose} id={id} backdrop="static">
       <Modal.Header closeButton>
-        <Modal.Title>{t('create_new_folder')}</Modal.Title>
+        <Modal.Title>{t('create_new_tag')}</Modal.Title>
       </Modal.Header>
 
       <Modal.Body>
         <Form name="createTagForm" onSubmit={handleSubmit}>
-          <input
-            ref={autoFocusedRef}
-            className="form-control"
-            type="text"
-            placeholder="New Tag Name"
-            name="new-tag-form-name"
-            required
-            onChange={e => setTagName(e.target.value)}
-          />
+          <FormGroup>
+            <input
+              ref={autoFocusedRef}
+              className="form-control"
+              type="text"
+              placeholder={t('new_tag_name')}
+              name="new-tag-form-name"
+              required
+              onChange={e => setTagName(e.target.value)}
+            />
+          </FormGroup>
+          <FormGroup aria-hidden="true">
+            <ControlLabel>{t('tag_color')}</ControlLabel>:{' '}
+            <div>
+              <ColorPicker disableCustomColor={disableCustomColor} />
+            </div>
+          </FormGroup>
         </Form>
       </Modal.Body>
 

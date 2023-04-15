@@ -1,13 +1,14 @@
 import { sortBy } from 'lodash'
 import { Button } from 'react-bootstrap'
 import { useTranslation } from 'react-i18next'
-import ColorManager from '../../../../ide/colors/ColorManager'
 import Icon from '../../../../shared/components/icon'
+import MaterialIcon from '../../../../shared/components/material-icon'
 import {
   UNCATEGORIZED_KEY,
   useProjectListContext,
 } from '../../context/project-list-context'
 import useTag from '../../hooks/use-tag'
+import { getTagColor } from '../../util/tag'
 
 export default function TagsList() {
   const { t } = useTranslation()
@@ -21,22 +22,26 @@ export default function TagsList() {
   const {
     handleSelectTag,
     openCreateTagModal,
-    handleRenameTag,
+    handleEditTag,
     handleDeleteTag,
     CreateTagModal,
-    RenameTagModal,
+    EditTagModal,
     DeleteTagModal,
   } = useTag()
 
   return (
     <>
       <li role="separator" className="separator">
-        <h2>{t('tags_slash_folders')}</h2>
+        <h2>{t('organize_projects')}</h2>
       </li>
       <li className="tag">
-        <Button className="tag-name" onClick={openCreateTagModal}>
+        <Button
+          className="tag-name"
+          onClick={openCreateTagModal}
+          bsStyle={null}
+        >
           <Icon type="plus" />
-          <span className="name">{t('new_folder')}</span>
+          <span className="name">{t('new_tag')}</span>
         </Button>
       </li>
       {sortBy(tags, tag => tag.name?.toLowerCase()).map(tag => {
@@ -50,17 +55,14 @@ export default function TagsList() {
               onClick={e =>
                 handleSelectTag(e as unknown as React.MouseEvent, tag._id)
               }
+              bsStyle={null}
             >
               <span
                 style={{
-                  color: `hsl(${ColorManager.getHueForTagId(
-                    tag._id
-                  )}, 70%, 45%)`,
+                  color: getTagColor(tag),
                 }}
               >
-                <Icon
-                  type={selectedTagId === tag._id ? 'folder-open' : 'folder'}
-                />
+                <MaterialIcon type="label" style={{ verticalAlign: 'sub' }} />
               </span>
               <span className="name">
                 {tag.name}{' '}
@@ -82,10 +84,10 @@ export default function TagsList() {
               <ul className="dropdown-menu dropdown-menu-right" role="menu">
                 <li>
                   <Button
-                    onClick={e => handleRenameTag(e, tag._id)}
+                    onClick={e => handleEditTag(e, tag._id)}
                     className="tag-action"
                   >
-                    {t('rename')}
+                    {t('edit')}
                   </Button>
                 </li>
                 <li>
@@ -101,22 +103,25 @@ export default function TagsList() {
           </li>
         )
       })}
-      <li
-        className={`tag untagged ${
-          selectedTagId === UNCATEGORIZED_KEY ? 'active' : ''
-        }`}
-      >
-        <Button
-          className="tag-name"
-          onClick={() => selectTag(UNCATEGORIZED_KEY)}
+      {tags.length > 0 && (
+        <li
+          className={`tag untagged ${
+            selectedTagId === UNCATEGORIZED_KEY ? 'active' : ''
+          }`}
         >
-          <span className="name">{t('uncategorized')}</span>
-          <span className="subdued"> ({untaggedProjectsCount})</span>
-        </Button>
-      </li>
+          <Button
+            className="tag-name"
+            onClick={() => selectTag(UNCATEGORIZED_KEY)}
+            bsStyle={null}
+          >
+            <span className="name">{t('uncategorized')}</span>
+            <span className="subdued"> ({untaggedProjectsCount})</span>
+          </Button>
+        </li>
+      )}
       <CreateTagModal id="create-tag-modal" />
-      <RenameTagModal id="delete-tag-modal" />
-      <DeleteTagModal id="rename-tag-modal" />
+      <EditTagModal id="edit-tag-modal" />
+      <DeleteTagModal id="delete-tag-modal" />
     </>
   )
 }

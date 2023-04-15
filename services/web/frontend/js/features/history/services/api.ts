@@ -1,6 +1,7 @@
 import { getJSON } from '../../../infrastructure/fetch-json'
 import { FileDiff } from './types/file'
 import { Update } from './types/update'
+import { Label } from './types/label'
 import { DocDiffResponse } from './types/doc'
 
 const BATCH_SIZE = 10
@@ -16,7 +17,14 @@ export function fetchUpdates(projectId: string, before?: number) {
 
   const queryParamsSerialized = new URLSearchParams(queryParams).toString()
   const updatesURL = `/project/${projectId}/updates?${queryParamsSerialized}`
-  return getJSON<{ updates: Update[] }>(updatesURL)
+  return getJSON<{ updates: Update[]; nextBeforeTimestamp?: number }>(
+    updatesURL
+  )
+}
+
+export function fetchLabels(projectId: string) {
+  const labelsURL = `/project/${projectId}/labels`
+  return getJSON<Label[]>(labelsURL)
 }
 
 export function diffFiles(projectId: string, fromV: number, toV: number) {

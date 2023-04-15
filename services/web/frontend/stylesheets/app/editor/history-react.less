@@ -15,7 +15,7 @@ history-root {
     height: @history-toolbar-height;
     background-color: @history-react-header-bg;
     color: @history-react-header-color;
-    font-size: 14px;
+    font-size: @font-size-small;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -50,12 +50,9 @@ history-root {
 
   .change-list {
     width: @versions-list-width;
+    font-size: @font-size-small;
     border-left: 1px solid @history-react-separator-color;
     box-sizing: content-box;
-
-    .toggle-switch-container {
-      padding: 0 16px;
-    }
   }
 
   .toggle-switch-label {
@@ -66,9 +63,137 @@ history-root {
     }
   }
 
+  .history-toggle-switch-container,
+  .history-version-day,
+  .history-version-details {
+    padding: 0 16px;
+  }
+
+  .history-version-day {
+    position: sticky;
+    top: 0;
+    display: block;
+    padding-top: 12px;
+    padding-bottom: 4px;
+    line-height: 20px;
+    background-color: @white;
+  }
+
+  .history-version-details {
+    padding-top: 8px;
+    padding-bottom: 8px;
+
+    &:hover {
+      cursor: pointer;
+      background-color: @neutral-10;
+    }
+  }
+
+  .history-version-metadata-time {
+    display: block;
+    margin-bottom: 4px;
+    color: @neutral-90;
+
+    &:last-child {
+      margin-bottom: initial;
+    }
+  }
+
+  .history-version-metadata-users,
+  .history-version-changes {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .history-version-metadata-users {
+    display: inline;
+
+    > li {
+      display: inline-flex;
+      align-items: center;
+      margin-right: 8px;
+    }
+  }
+
+  .history-version-changes {
+    > li {
+      margin-bottom: 4px;
+    }
+  }
+
+  .history-version-user-badge-color {
+    @size: 8px;
+    display: inline-block;
+    width: @size;
+    height: @size;
+    margin-right: 4px;
+    border-radius: 2px;
+  }
+
+  .history-version-day,
+  .history-version-change-action,
+  .history-version-metadata-users,
+  .history-version-origin,
+  .history-version-saved-by {
+    color: @neutral-70;
+  }
+
+  .history-version-change-doc {
+    color: @neutral-90;
+  }
+
+  .history-version-divider {
+    margin: 6px 8px;
+    border-color: @neutral-20;
+  }
+
+  .history-version-badge {
+    margin-bottom: 4px;
+    margin-right: 10px;
+  }
+
+  .history-version-saved-by {
+    margin-bottom: 4px;
+
+    &-label {
+      margin-right: 8px;
+    }
+
+    &:last-child {
+      margin-bottom: initial;
+    }
+  }
+
   .history-loading-panel {
     padding-top: 10rem;
     font-family: @font-family-serif;
     text-align: center;
+  }
+
+  .history-file-entity-operation-badge {
+    flex: 0 0 auto;
+    text-transform: lowercase;
+    margin-left: 0.5em;
+    font-size: 0.7em;
+    background: @history-file-badge-bg;
+    color: @history-file-badge-color;
+    border-radius: 8px;
+    line-height: 1;
+    padding: 2px 4px 3px;
+    margin-top: 2px;
+  }
+}
+
+.history-version-label-tooltip {
+  padding: 6px;
+  text-align: initial;
+
+  &-row {
+    margin-bottom: 6.25px;
+
+    &:last-child {
+      margin-bottom: initial;
+    }
   }
 }
