@@ -109,22 +109,23 @@ async function settingsPage(req, res) {
 
 const UserPagesController = {
   registerPage(req, res) {
-    const sharedProjectData = {
-      project_name: req.query.project_name,
-      user_first_name: req.query.user_first_name,
-    }
+    // const sharedProjectData = {
+    //   project_name: req.query.project_name,
+    //   user_first_name: req.query.user_first_name,
+    // }
 
-    const newTemplateData = {}
-    if (req.session.templateData != null) {
-      newTemplateData.templateName = req.session.templateData.templateName
-    }
+    // const newTemplateData = {}
+    // if (req.session.templateData != null) {
+    //   newTemplateData.templateName = req.session.templateData.templateName
+    // }
 
-    res.render('user/register', {
-      title: 'register',
-      sharedProjectData,
-      newTemplateData,
-      samlBeta: req.session.samlBeta,
-    })
+    // res.render('user/register', {
+    //   title: 'register',
+    //   sharedProjectData,
+    //   newTemplateData,
+    //   samlBeta: req.session.samlBeta,
+    // })
+    res.render('user/register');
   },
 
   loginPage(req, res) {
