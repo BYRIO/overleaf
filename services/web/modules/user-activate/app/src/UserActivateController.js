@@ -27,6 +27,28 @@ module.exports = {
     )
   },
 
+  registerPublic(req, res, next) {
+    const { email } = req.body
+    valid_edu = (/bupt.edu.cn\s*$/.test(email))
+    valid_bupt = (/bupt.cn\s*$/.test(email))
+    if (email == null || email === '' || (!valid_edu && !valid_bupt)) {
+      return res.sendStatus(422) // Unprocessable Entity
+    }
+    UserRegistrationHandler.registerNewUserAndSendActivationEmail(
+      email,
+      (error, user, setNewPasswordUrl) => {
+        if (error != null) {
+          return next(error)
+        }
+        setNewPasswordUrl = "Please check your inbox."
+        res.json({
+          email: user.email,
+          setNewPasswordUrl
+        })
+      }
+    )
+  },
+
   activateAccountPage(req, res, next) {
     // An 'activation' is actually just a password reset on an account that
     // was set with a random password originally.

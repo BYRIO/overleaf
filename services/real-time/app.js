@@ -49,6 +49,7 @@ const app = express()
 const server = require('http').createServer(app)
 const io = require('socket.io').listen(server, {
   logger: socketIoLogger,
+  'heartbeat interval': 10  // BYRIO-CHANGES: it's designed for tencent CDN websocket heartbeat
 })
 
 // Bind to sessions

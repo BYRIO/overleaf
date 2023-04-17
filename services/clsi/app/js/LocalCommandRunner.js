@@ -54,6 +54,7 @@ module.exports = CommandRunner = {
       cwd: directory,
       env,
       stdio: ['pipe', 'pipe', 'ignore'],
+      detached: true  // BYRIO-CHANGES: it's designed for kill if needed
     })
 
     let stdout = ''
