@@ -1,0 +1,105 @@
+name: Build & Publish Base Image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  Build-Docker-Image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build Container
+        run: |
+          export GITHUB_RUN_ID=${{ github.run_id }}
+          echo ${DOCKER_CONFIG}
+          cd server-ce/
+          make build-base
+          make build-community
+        
+      - name: Export Docker Image to tar
+        run: |
+          docker save sharelatex/sharelatex > sharelatex.tar
+
+      - name: Export to Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-image
+          path: sharelatex.tar
+          retention-days: 1
+  
+  Publish-Image-to-Ali-ACR:
+    runs-on: ubuntu-latest
+    needs: Build-Docker-Image
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: docker-image
+
+      - name: Tag Container
+        run: |
+          docker load < sharelatex.tar
+          docker tag sharelatex/sharelatex registry.cn-hangzhou.aliyuncs.com/byrio/overleaf:latest
+          docker tag sharelatex/sharelatex registry.cn-hangzhou.aliyuncs.com/byrio/overleaf:${{ github.sha }}
+
+      - name: Login to Ali-ACR
+        uses: aliyun/acr-login@v1
+        with:
+          region-id: cn-hangzhou
+          access-key-id: "${{ secrets.ACR_ACCESSKEYID }}"
+          access-key-secret: "${{ secrets.ACR_ACCESSKEYSECRET }}"
+
+      - name: Commit Images to Ali-ACR
+        if: startsWith(github.event.commits[0].message, '[release]')
+        run: |
+          export aliyun_registry="registry.cn-hangzhou.aliyuncs.com/byrio/overleaf"
+          echo "Publishing ${aliyun_registry}:${{ github.sha }}"
+          docker push ${aliyun_registry}:${{ github.sha }}
+          docker push ${aliyun_registry}:latest
+
+
+  Publish-Image-to-GHCR:
+    runs-on: ubuntu-latest
+    needs: Build-Docker-Image
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: docker-image
+
+      - name: Tag Container
+        run: |
+          docker load < sharelatex.tar
+          docker tag sharelatex/sharelatex ghcr.io/byrio/overleaf:latest
+          docker tag sharelatex/sharelatex ghcr.io/byrio/overleaf:${{ github.sha }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit sha-Images to GHCR
+        run: |
+          export ghcr_registry="ghcr.io/byrio/overleaf"
+          echo "Publishing ${ghcr_registry}:${{ github.sha }}"
+          docker push ${ghcr_registry}:${{ github.sha }}
+      
+      - name: Commit latest-Images to GHCR
+        if: startsWith(github.event.commits[0].message, '[release]')
+        run: |
+          export ghcr_registry="ghcr.io/byrio/overleaf"
+          echo "Publishing ${ghcr_registry}:latest"
+          docker push ${ghcr_registry}:latest

@@ -1,0 +1,20 @@
+{
+    "name": "references-sharelatex",
+    "author": "Tackoil",
+    "description": "references",
+    "scripts": {
+        "start": "node $NODE_APP_OPTIONS app.js"
+    },
+    "version": "0.1.0",
+    "dependencies": {
+        "@overleaf/metrics": "^3.5.1",
+        "@overleaf/o-error": "^3.0.0",
+        "@overleaf/settings": "^2.1.1",
+        "async": "^3.2.2",
+        "bibtex-parser": "^0.0.0",
+        "express": "^4.17.1",
+        "logger-sharelatex": "^2.2.0",
+        "mongodb": "^3.6.0",
+        "request": "^2.88.2"
+    }
+}
