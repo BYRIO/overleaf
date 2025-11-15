@@ -13,6 +13,7 @@ import importOverleafModules from '../../../../../macros/import-overleaf-module.
 import MaterialIcon from '@/shared/components/material-icon'
 import { useFileTreePathContext } from '@/features/file-tree/contexts/file-tree-path'
 import { useFileTreeOpenContext } from '@/features/ide-react/context/file-tree-open-context'
+import PdfLogEntryAskAIButton from '@/features/pdf-preview/components/pdf-log-entry-ask-ai-button'
 
 const actionComponents = importOverleafModules(
   'pdfLogEntryHeaderActionComponents'
@@ -105,6 +106,14 @@ function LogEntryHeader({
     !!fileData &&
     !(fileData.entity._id === openEntity?.entity._id && !line)
 
+  console.log('[LogEntryHeader] Rendering:', {
+    level,
+    hasLogEntry: !!logEntry,
+    logEntryLevel: logEntry?.level,
+    file: sourceLocation?.file,
+    line: sourceLocation?.line
+  })
+
   return (
     <header className="log-entry-header-card">
       <button
@@ -153,6 +162,9 @@ function LogEntryHeader({
               />
             </OLTooltip>
           )}
+          {/* ADD THE ASK AI BUTTON HERE */}
+          {logEntry && <PdfLogEntryAskAIButton logEntry={logEntry} />}
+          {/* END OF ADDITION */}
           {actionComponents.map(({ import: { default: Component }, path }) => (
             <Component key={path} logEntry={logEntry} id={id} />
           ))}

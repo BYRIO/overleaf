@@ -231,6 +231,10 @@ const UserSchema = new Schema(
     dsMobileApp: {
       subscribed: { type: Boolean },
     },
+    useOwnLLMSettings: { type: Boolean, default: false },
+    llmApiKey: { type: String, default: "" },
+    llmModelName: { type: String, default: "" },
+    llmApiUrl: { type: String, default: "" },
   },
   { minimize: false }
 )

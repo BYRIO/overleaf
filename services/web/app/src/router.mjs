@@ -22,6 +22,7 @@ import UserInfoController from './Features/User/UserInfoController.mjs'
 import UserController from './Features/User/UserController.mjs'
 import UserEmailsController from './Features/User/UserEmailsController.mjs'
 import UserPagesController from './Features/User/UserPagesController.mjs'
+import UserLLMSettingsController from './Features/User/UserLLMSettingsController.mjs'
 import TutorialController from './Features/Tutorial/TutorialController.mjs'
 import DocumentController from './Features/Documents/DocumentController.mjs'
 import CompileManager from './Features/Compile/CompileManager.mjs'
@@ -66,6 +67,7 @@ import { plainTextResponse } from './infrastructure/Response.js'
 import SocketDiagnostics from './Features/SocketDiagnostics/SocketDiagnostics.mjs'
 import ClsiCacheController from './Features/Compile/ClsiCacheController.mjs'
 import AsyncLocalStorage from './infrastructure/AsyncLocalStorage.js'
+import LLMChatController from './Features/LLMChat/LLMChatController.mjs'
 
 const { renderUnsupportedBrowserPage, unsupportedBrowserMiddleware } =
   UnsupportedBrowserMiddleware
@@ -282,7 +284,6 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
   UserMembershipRouter.apply(webRouter)
   TokenAccessRouter.apply(webRouter)
   HistoryRouter.apply(webRouter, privateApiRouter)
-
   await Modules.applyRouter(webRouter, privateApiRouter, publicApiRouter)
 
   if (Settings.enableSubscriptions) {
@@ -306,6 +307,16 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     '/user/settings',
     AuthenticationController.requireLogin(),
     UserController.updateUserSettings
+  )
+  webRouter.post(
+    '/user/llm-settings/check',
+    AuthenticationController.requireLogin(),
+    UserLLMSettingsController.checkLLMConnection
+  )
+  webRouter.post(
+    '/user/llm-settings',
+    AuthenticationController.requireLogin(),
+    UserLLMSettingsController.saveLLMSettings
   )
   webRouter.post(
     '/user/password/update',
@@ -568,6 +579,18 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     AuthenticationController.requireLogin(),
     AuthorizationMiddleware.ensureUserCanAdminProject,
     ProjectController.updateProjectAdminSettings
+  )
+
+  webRouter.post(
+    '/project/:Project_id/llm/chat',
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    LLMChatController.chat
+  )
+
+  webRouter.get(
+    '/project/:Project_id/llm/models',
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    LLMChatController.getModels
   )
 
   webRouter.post(

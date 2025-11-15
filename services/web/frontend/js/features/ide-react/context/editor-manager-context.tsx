@@ -53,6 +53,7 @@ export type EditorManager = {
   getEditorType: () => EditorType | null
   getCurrentDocValue: () => string | null
   getCurrentDocumentId: () => DocId | null
+  getCurrentDocName: () => string | null
   setIgnoringExternalUpdates: (value: boolean) => void
   openDocWithId: (docId: string, options?: OpenDocOptions) => void
   openDoc: (document: Doc, options?: OpenDocOptions) => void
@@ -99,6 +100,7 @@ export const EditorManagerProvider: FC<React.PropsWithChildren> = ({
   const {
     currentDocumentId,
     setCurrentDocumentId,
+    openDocName,
     setOpenDocName,
     currentDocument,
     setCurrentDocument,
@@ -194,6 +196,10 @@ export const EditorManagerProvider: FC<React.PropsWithChildren> = ({
     () => currentDocumentId,
     [currentDocumentId]
   )
+
+  const getCurrentDocName = useCallback(() => {
+    return openDocName
+  }, [openDocName])
 
   const jumpToLine = useCallback(
     (options: GotoLineOptions) => {
@@ -645,6 +651,7 @@ export const EditorManagerProvider: FC<React.PropsWithChildren> = ({
       getEditorType,
       getCurrentDocValue,
       getCurrentDocumentId,
+      getCurrentDocName,
       setIgnoringExternalUpdates,
       openDocWithId,
       openDoc,
@@ -659,6 +666,7 @@ export const EditorManagerProvider: FC<React.PropsWithChildren> = ({
       getEditorType,
       getCurrentDocValue,
       getCurrentDocumentId,
+      getCurrentDocName,
       setIgnoringExternalUpdates,
       openDocWithId,
       openDoc,

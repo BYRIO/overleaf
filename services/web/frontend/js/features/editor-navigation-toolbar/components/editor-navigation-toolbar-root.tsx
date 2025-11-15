@@ -36,6 +36,8 @@ const EditorNavigationToolbarRoot = React.memo(
     const {
       chatIsOpen,
       setChatIsOpen,
+      llmChatIsOpen,        // ADD
+      setLLMChatIsOpen,      // ADD
       reviewPanelOpen,
       setReviewPanelOpen,
       view,
@@ -54,6 +56,13 @@ const EditorNavigationToolbarRoot = React.memo(
       })
       setChatIsOpen(!chatIsOpen)
     }, [chatIsOpen, setChatIsOpen, markMessagesAsRead])
+
+    const toggleLLMChatOpen = useCallback(() => {
+      eventTracking.sendMB('navigation-clicked-llm-chat', {
+        action: isOpentoString(!llmChatIsOpen),
+      })
+      setLLMChatIsOpen(!llmChatIsOpen)
+    }, [llmChatIsOpen, setLLMChatIsOpen])
 
     const toggleReviewPanelOpen = useCallback(
       (event: any) => {
@@ -106,6 +115,8 @@ const EditorNavigationToolbarRoot = React.memo(
         cobranding={cobranding}
         onShowLeftMenuClick={onShowLeftMenuClick}
         chatIsOpen={chatIsOpen}
+        llmChatIsOpen={llmChatIsOpen}
+        toggleLLMChatOpen={toggleLLMChatOpen}
         unreadMessageCount={unreadMessageCount}
         toggleChatOpen={toggleChatOpen}
         reviewPanelOpen={reviewPanelOpen}

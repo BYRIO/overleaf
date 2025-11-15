@@ -54,7 +54,7 @@ function PdfLogEntry({
     extraInfoURL = hint.extraInfoURL
   }
 
-  const handleLogEntryLinkClick: MouseEventHandler<HTMLButtonElement> =
+  const handleLogEntryLinkClick: MouseEventHandler<HTMLButtonButton> =
     useCallback(
       event => {
         event.preventDefault()
@@ -111,6 +111,7 @@ function PdfLogEntry({
         logType={logType}
         showSourceLocationLink={showSourceLocationLink}
         onSourceLocationClick={handleLogEntryLinkClick}
+        logEntry={logEntry}
       />
 
       {(rawContent || formattedContent || showAiErrorAssistant) && (
@@ -127,3 +128,4 @@ function PdfLogEntry({
 }
 
 export default memo(PdfLogEntry)
+

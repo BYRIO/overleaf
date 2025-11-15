@@ -5,12 +5,14 @@ import classNames from 'classnames'
 import { useLayoutContext } from '@/shared/context/layout-context'
 import EditorNavigationToolbar from '@/features/ide-react/components/editor-navigation-toolbar'
 import ChatPane from '@/features/chat/components/chat-pane'
+import LLMChatPane from '@/features/llm-chat/components/llm-chat-pane'
 import { HorizontalToggler } from '@/features/ide-react/components/resize/horizontal-toggler'
 import { HistorySidebar } from '@/features/ide-react/components/history-sidebar'
 import EditorSidebar from '@/features/ide-react/components/editor-sidebar'
 import { useTranslation } from 'react-i18next'
 import { useSidebarPane } from '@/features/ide-react/hooks/use-sidebar-pane'
 import { useChatPane } from '@/features/ide-react/hooks/use-chat-pane'
+import { useLLMChatPane } from '@/features/ide-react/hooks/use-llm-chat-pane'
 import { EditorAndPdf } from '@/features/ide-react/components/editor-and-pdf'
 import HistoryContainer from '@/features/ide-react/components/history-container'
 import getMeta from '@/utils/meta'
@@ -43,14 +45,28 @@ export const MainLayout: FC = () => {
     togglePane: toggleChat,
     resizing: chatResizing,
     setResizing: setChatResizing,
-    handlePaneCollapse: handleChatCollapse,
-    handlePaneExpand: handleChatExpand,
   } = useChatPane()
+
+  const {
+    isOpen: llmChatIsOpen,
+    panelRef: llmChatPanelRef,
+    togglePane: toggleLLMChat,
+    resizing: llmChatResizing,
+    setResizing: setLLMChatResizing,
+  } = useLLMChatPane()
 
   const chatEnabled =
     getMeta('ol-capabilities')?.includes('chat') && !isRestrictedTokenMember
 
   const { t } = useTranslation()
+
+  // Debug logging
+  console.log('[MainLayout] Render - Chat States:', {
+    chatIsOpen,
+    llmChatIsOpen,
+    chatEnabled,
+    timestamp: new Date().toISOString()
+  })
 
   return (
     <div className="ide-react-main">
@@ -60,7 +76,7 @@ export const MainLayout: FC = () => {
           autoSaveId="ide-outer-layout"
           direction="horizontal"
           className={classNames({
-            'ide-panel-group-resizing': sidebarResizing || chatResizing,
+            'ide-panel-group-resizing': sidebarResizing || chatResizing || llmChatResizing,
           })}
         >
           {/* sidebar */}
@@ -102,26 +118,44 @@ export const MainLayout: FC = () => {
                 <EditorAndPdf />
               </Panel>
 
-              {chatEnabled && (
+              {/* LLM Chat - only render when open */}
+              {!isRestrictedTokenMember && llmChatIsOpen && (
                 <>
                   <HorizontalResizeHandle
-                    onDoubleClick={toggleChat}
-                    resizable={chatIsOpen}
-                    onDragging={setChatResizing}
+                    onDoubleClick={toggleLLMChat}
+                    resizable={true}
+                    onDragging={setLLMChatResizing}
                     hitAreaMargins={{ coarse: 0, fine: 0 }}
                   />
-
-                  {/* chat */}
                   <Panel
-                    ref={chatPanelRef}
-                    id="panel-chat"
+                    ref={llmChatPanelRef}
+                    id="panel-llm-chat"
                     order={2}
                     defaultSize={20}
                     minSize={5}
                     maxSize={30}
-                    collapsible
-                    onCollapse={handleChatCollapse}
-                    onExpand={handleChatExpand}
+                  >
+                    <LLMChatPane />
+                  </Panel>
+                </>
+              )}
+
+              {/* Regular chat - only render when open */}
+              {chatEnabled && chatIsOpen && (
+                <>
+                  <HorizontalResizeHandle
+                    onDoubleClick={toggleChat}
+                    resizable={true}
+                    onDragging={setChatResizing}
+                    hitAreaMargins={{ coarse: 0, fine: 0 }}
+                  />
+                  <Panel
+                    ref={chatPanelRef}
+                    id="panel-chat"
+                    order={3}
+                    defaultSize={20}
+                    minSize={5}
+                    maxSize={30}
                   >
                     <ChatPane />
                   </Panel>

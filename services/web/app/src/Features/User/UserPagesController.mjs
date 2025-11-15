@@ -144,6 +144,12 @@ async function settingsPage(req, res) {
       writefull: {
         enabled: Boolean(user.writefull?.enabled),
       },
+      llmSettings: {
+        useOwnSettings: user.useOwnLLMSettings,
+        modelName: user.llmModelName,
+        apiUrl: user.llmApiUrl,
+        hasApiKey: Boolean(user.llmApiKey)
+      },
       aiErrorAssistant: {
         enabled: Boolean(user.aiErrorAssistant?.enabled),
       },

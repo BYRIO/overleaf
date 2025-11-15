@@ -19,6 +19,7 @@ import TryNewEditorButton from '../try-new-editor-button'
 import { OnlineUser } from '@/features/ide-react/context/online-users-context'
 import { Cobranding } from '../../../../../types/cobranding'
 import { canUseNewEditor } from '@/features/ide-redesign/utils/new-editor-utils'
+import LLMChatToggleButton from './llm-chat-toggle-button'
 
 const [publishModalModules] = importOverleafModules('publishModal') as {
   import: { default: ElementType }
@@ -59,6 +60,8 @@ export type ToolbarHeaderProps = {
   hasRenamePermissions: boolean
   openShareModal: () => void
   trackChangesVisible: boolean | undefined
+  llmChatIsOpen: boolean
+  toggleLLMChatOpen: () => void
 }
 
 const ToolbarHeader = React.memo(function ToolbarHeader({
@@ -81,6 +84,8 @@ const ToolbarHeader = React.memo(function ToolbarHeader({
   hasRenamePermissions,
   openShareModal,
   trackChangesVisible,
+  llmChatIsOpen,
+  toggleLLMChatOpen,
 }: ToolbarHeaderProps) {
   const chatEnabled = getMeta('ol-capabilities')?.includes('chat')
 
@@ -144,6 +149,15 @@ const ToolbarHeader = React.memo(function ToolbarHeader({
 
             <LayoutDropdownButton />
 
+            {/* LLM Chat button - independent of regular chat */}
+            {!isRestrictedTokenMember && (
+              <LLMChatToggleButton
+                llmChatIsOpen={llmChatIsOpen}
+                onClick={toggleLLMChatOpen}
+              />
+            )}
+
+            {/* Regular chat button - only shown when chat is enabled */}
             {chatEnabled && chatVisible && (
               <ChatToggleButton
                 chatIsOpen={chatIsOpen}

@@ -30,6 +30,7 @@ export type IdeView = 'editor' | 'file' | 'pdf' | 'history'
 export type LayoutContextOwnStates = {
   view: IdeView | null
   chatIsOpen: boolean
+  llmChatIsOpen: boolean
   reviewPanelOpen: boolean
   miniReviewPanelVisible: boolean
   leftMenuShown: boolean
@@ -47,6 +48,7 @@ export type LayoutContextValue = LayoutContextOwnStates & {
   changeLayout: (newLayout: IdeLayout, newView?: IdeView) => void
   setView: (view: IdeView | null) => void
   setChatIsOpen: Dispatch<SetStateAction<LayoutContextValue['chatIsOpen']>>
+  setLLMChatIsOpen: Dispatch<SetStateAction<LayoutContextValue['llmChatIsOpen']>>
   setReviewPanelOpen: Dispatch<
     SetStateAction<LayoutContextValue['reviewPanelOpen']>
   >
@@ -131,6 +133,12 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
   // whether the chat pane is open
   const [chatIsOpen, setChatIsOpen] = usePersistedState<boolean>(
     'ui.chatOpen',
+    false
+  )
+
+  // whether the LLM chat pane is open
+  const [llmChatIsOpen, setLLMChatIsOpen] = usePersistedState<boolean>(
+    'ui.llmChatOpen',
     false
   )
 
@@ -266,6 +274,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
       detachRole,
       changeLayout,
       chatIsOpen,
+      llmChatIsOpen,
       leftMenuShown,
       openFile,
       pdfLayout,
@@ -276,6 +285,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
       miniReviewPanelVisible,
       loadingStyleSheet,
       setChatIsOpen,
+      setLLMChatIsOpen,
       setLeftMenuShown,
       setOpenFile,
       setPdfLayout,
@@ -293,6 +303,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
       detachRole,
       changeLayout,
       chatIsOpen,
+      llmChatIsOpen,
       leftMenuShown,
       openFile,
       pdfLayout,
@@ -303,6 +314,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
       miniReviewPanelVisible,
       loadingStyleSheet,
       setChatIsOpen,
+      setLLMChatIsOpen,
       setLeftMenuShown,
       setOpenFile,
       setPdfLayout,
