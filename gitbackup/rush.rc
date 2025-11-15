@@ -1,0 +1,10 @@
+rush 2.0
+
+rule git-upload-pack
+        match $command ~ "^/bin/sh"
+        match $SSH_ORIGINAL_COMMAND ~ "git-upload-pack '(.+)'"
+        set[0] = "/usr/lib/git-core/git-upload-pack"
+        set[1] = %1
+        interactive true
+        umask 022
+        chroot "~"

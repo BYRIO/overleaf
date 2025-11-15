@@ -4,14 +4,21 @@ MONOREPO_ROOT := ../
 HERE=$(shell pwd)
 export MONOREPO_REVISION := $(shell git rev-parse HEAD)
 export BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD)
+
 export OVERLEAF_BASE_BRANCH ?= sharelatex/sharelatex-base:$(BRANCH_NAME)
 export OVERLEAF_BASE_LATEST ?= sharelatex/sharelatex-base
 export OVERLEAF_BASE_TAG ?= sharelatex/sharelatex-base:$(BRANCH_NAME)-$(MONOREPO_REVISION)
+
 export OVERLEAF_BRANCH ?= sharelatex/sharelatex:$(BRANCH_NAME)
 export OVERLEAF_LATEST ?= sharelatex/sharelatex
 export OVERLEAF_TAG ?= sharelatex/sharelatex:$(BRANCH_NAME)-$(MONOREPO_REVISION)
 
-all: build-base build-community
+export OVERLEAF_GITBACKUP_BRANCH ?= sharelatex/sharelatex-gitbackup:$(BRANCH_NAME)
+export OVERLEAF_GITBACKUP_LATEST ?= sharelatex/sharelatex-gitbackup
+export OVERLEAF_GITBACKUP_TAG ?= sharelatex/sharelatex-gitbackup:$(BRANCH_NAME)-$(MONOREPO_REVISION)
+
+
+all: build-base build-community build-gitbackup
 
 clean:
 	-docker rmi --force $(OVERLEAF_BASE_TAG) $(OVERLEAF_TAG)
@@ -51,6 +58,18 @@ build-community:
 	  --file Dockerfile \
 	  --tag $(OVERLEAF_TAG) \
 	  --tag $(OVERLEAF_BRANCH) \
+	  $(MONOREPO_ROOT)
+
+build-gitbackup:
+	docker build \
+	  --build-arg BUILDKIT_INLINE_CACHE=1 \
+	  --progress=plain \
+	  --cache-from $(OVERLEAF_GITBACKUP_LATEST) \
+	  --cache-from $(OVERLEAF_GITBACKUP_BRANCH) \
+	  --file Dockerfile-gitbridge \
+	  --tag $(OVERLEAF_GITBACKUP_TAG) \
+	  --tag $(OVERLEAF_GITBACKUP_BRANCH) \
+	  --tag $(OVERLEAF_GITBACKUP_LATEST) \
 	  $(MONOREPO_ROOT)
 
 pre-pull-texlive-images:

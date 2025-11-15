@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Source environment variables
+source /etc/overleaf/env.sh
+
+# Check if gitbackup is enabled
+if [ "${GITBACKUP_ENABLED}" != "true" ]; then
+    echo "Gitbackup is disabled (GITBACKUP_ENABLED != 'true')"
+    sv down gitbackup-manager
+    exit 0
+fi
+
+# Check if docker socket is available
+if [ ! -S /var/run/docker.sock ]; then
+    echo "Error: Docker socket not found at /var/run/docker.sock"
+    echo "Please mount the Docker socket to enable gitbackup management"
+    exit 1
+fi
+
+# Export environment variables for the manager script
+export GITBACKUP_IMAGE="${GITBACKUP_IMAGE:-sharelatex/sharelatex-gitbackup:latest}"
+export GITBACKUP_CONTAINER_NAME="${GITBACKUP_CONTAINER_NAME:-gitbackup}"
+export GITBACKUP_SSH_PORT="${GITBACKUP_SSH_PORT:-2222}"
+export GITBACKUP_DATA_DIR="${GITBACKUP_DATA_DIR:-/var/lib/overleaf/gitbackup}"
+export GITBACKUP_HOST_DATA_DIR="${GITBACKUP_HOST_DATA_DIR}"
+export GITBACKUP_CHECK_INTERVAL="${GITBACKUP_CHECK_INTERVAL:-30000}"
+export DOCKER_NETWORK="${DOCKER_NETWORK:-bridge}"
+
+echo "Starting gitbackup manager..."
+echo "  Image: ${GITBACKUP_IMAGE}"
+echo "  Container: ${GITBACKUP_CONTAINER_NAME}"
+echo "  SSH Port: ${GITBACKUP_SSH_PORT}"
+echo "  Data Dir: ${GITBACKUP_DATA_DIR}"
+echo "  Host Data Dir: ${GITBACKUP_HOST_DATA_DIR}"  
+
+# Set NODE_PATH to find dockerode in /overleaf/node_modules
+export NODE_PATH=/overleaf/node_modules:$NODE_PATH
+
+exec /sbin/setuser www-data /usr/bin/node /usr/local/bin/gitbackup-manager.js >> /var/log/overleaf/gitbackup-manager.log 2>&1

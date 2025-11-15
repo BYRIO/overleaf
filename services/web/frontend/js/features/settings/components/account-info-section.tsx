@@ -25,6 +25,7 @@ function AccountInfoSection() {
     first_name: initialFirstName,
     last_name: initialLastName,
     email: initialEmail,
+    sshkeys,
   } = useUserContext()
 
   const [email, setEmail] = useState(initialEmail)
@@ -32,6 +33,9 @@ function AccountInfoSection() {
   const [lastName, setLastName] = useState(initialLastName)
   const { isLoading, isSuccess, isError, error, runAsync } = useAsync()
   const [isFormValid, setIsFormValid] = useState(true)
+
+  const [showSshPublic, setShowSshPublic] = useState(false)
+  const [showSshPrivate, setShowSshPrivate] = useState(false)
 
   const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(event.target.value)
@@ -51,6 +55,10 @@ function AccountInfoSection() {
   const canUpdateEmail =
     !hasAffiliationsFeature && !isExternalAuthenticationSystemUsed
   const canUpdateNames = shouldAllowEditingDetails
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+  }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -135,6 +143,81 @@ function AccountInfoSection() {
           </OLFormGroup>
         ) : null}
       </form>
+
+      {/* SSH Keys Section - Improved */}
+      {(sshkeys?.Public || sshkeys?.Private) && (
+        <>
+          <h3 id="ssh-keys" style={{ marginTop: '2rem' }}>SSH Keys</h3>
+          
+          {sshkeys?.Public && (
+            <OLFormGroup controlId="ssh-public-key-input">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <OLFormLabel>SSH Public Key</OLFormLabel>
+                <div>
+                  <OLButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => copyToClipboard(sshkeys.Public)}
+                    style={{ marginRight: '0.5rem' }}
+                  >
+                    Copy
+                  </OLButton>
+                  <OLButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowSshPublic(!showSshPublic)}
+                  >
+                    {showSshPublic ? 'Hide' : 'Show'}
+                  </OLButton>
+                </div>
+              </div>
+              {showSshPublic && (
+                <textarea
+                  className="form-control"
+                  readOnly
+                  value={sshkeys.Public}
+                  rows={4}
+                  style={{ fontFamily: 'monospace', fontSize: '12px', marginTop: '0.5rem' }}
+                />
+              )}
+            </OLFormGroup>
+          )}
+
+          {sshkeys?.Private && (
+            <OLFormGroup controlId="ssh-private-key-input">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <OLFormLabel>SSH Private Key</OLFormLabel>
+                <div>
+                  <OLButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => copyToClipboard(sshkeys.Private)}
+                    style={{ marginRight: '0.5rem' }}
+                  >
+                    Copy
+                  </OLButton>
+                  <OLButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowSshPrivate(!showSshPrivate)}
+                  >
+                    {showSshPrivate ? 'Hide' : 'Show'}
+                  </OLButton>
+                </div>
+              </div>
+              {showSshPrivate && (
+                <textarea
+                  className="form-control"
+                  readOnly
+                  value={sshkeys.Private}
+                  rows={6}
+                  style={{ fontFamily: 'monospace', fontSize: '12px', marginTop: '0.5rem' }}
+                />
+              )}
+            </OLFormGroup>
+          )}
+        </>
+      )}
     </>
   )
 }

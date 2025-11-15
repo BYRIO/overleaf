@@ -7,6 +7,9 @@ FROM $OVERLEAF_BASE_TAG
 
 WORKDIR /overleaf
 
+# Install npm v11.4.2 and patch-package globally before running npm install!
+RUN npm install -g npm@11.4.2 patch-package dockerode
+
 # Add required source files
 # -------------------------
 ADD server-ce/genScript.js /overleaf/genScript.js
@@ -15,6 +18,11 @@ ADD package.json package-lock.json /overleaf/
 ADD libraries/ /overleaf/libraries/
 ADD services/ /overleaf/services/
 ADD tools/migrations/ /overleaf/tools/migrations/
+
+# Copy gitbackup manager script
+# -----------------------------
+COPY server-ce/gitbackup/gitbackup-manager.js /usr/local/bin/gitbackup-manager.js
+RUN chmod +x /usr/local/bin/gitbackup-manager.js
 
 # Add npm patches
 # -----------------------
@@ -32,6 +40,11 @@ RUN --mount=type=cache,target=/root/.cache \
 # Copy runit service startup scripts to its location
 # --------------------------------------------------
 ADD server-ce/runit /etc/service
+RUN chmod +x /etc/service/*/run
+
+# Copy pre-shutdown scripts
+COPY server-ce/init_preshutdown_scripts/ /etc/my_init.pre_shutdown.d/
+RUN chmod +x /etc/my_init.pre_shutdown.d/*.sh
 
 # Copy runit global settings to its location
 # ------------------------------------------

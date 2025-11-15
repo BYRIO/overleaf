@@ -1,0 +1,143 @@
+FROM phusion/baseimage:noble-1.0.2
+
+# Use baseimage-docker's init system
+CMD ["/sbin/my_init"]
+
+# Ensure non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Update and install packages
+RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-suggests --no-install-recommends \
+    mc \
+    bash \
+    openssh-server \
+    python3-pip \
+    python3-argh \
+    git-all \
+    golang-go \
+    curl \
+    openssl \
+    libpam-script \
+    sudo \
+    rush \
+    inetutils-syslogd \
+    python3-docker \
+    ncat \
+    python3-pymongo \
+    unzip \
+    cron \
+    logrotate \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create system groups and users (BUILD TIME)
+RUN groupadd -r nogroup 2>/dev/null || true && \
+    useradd -r -g nogroup -s /bin/false sshd 2>/dev/null || true && \
+    groupadd -r overleafcep 2>/dev/null || true
+
+# Set up SSH directory structure (BUILD TIME)
+RUN mkdir -p /run/sshd && \
+    chmod -R 0700 /run/sshd && \
+    mkdir -p /etc/skel && \
+    chmod 0700 /etc/skel/.ssh 2>/dev/null || true && \
+    rm -f /etc/skel/.profile /etc/skel/.bashrc /etc/skel/.bash_logout
+
+# Set proper file permissions (BUILD TIME)
+RUN chmod 644 /etc/passwd /etc/group && \
+    chmod 600 /etc/shadow
+
+# Create downloads directory (BUILD TIME)
+RUN mkdir -p /downloads && \
+    chown root:root /downloads && \
+    chmod 755 /downloads
+
+# Set up jail structure (BUILD TIME)
+RUN mkdir -p /etc/skel/lib \
+             /etc/skel/lib64 \
+             /etc/skel/lib/x86_64-linux-gnu \
+             /etc/skel/usr/lib/git-core \
+             /etc/skel/etc
+
+# Copy git binaries to jail (BUILD TIME)
+RUN cp /usr/lib/git-core/git-submodule /etc/skel/usr/lib/git-core/ && \
+    cp /usr/lib/git-core/git /etc/skel/usr/lib/git-core/ && \
+    cp /usr/lib/git-core/git-upload-pack /etc/skel/usr/lib/git-core/ && \
+    chmod +x /etc/skel/usr/lib/git-core/*
+
+# Copy required libraries to jail (BUILD TIME)  
+RUN cd /etc/skel/usr/lib/git-core && \
+    ldd git | grep "=> " | awk '{print $3}' > /etc/skel/ldd_list && \
+    ldd git-submodule | grep "=> " | awk '{print $3}' >> /etc/skel/ldd_list && \
+    cd /etc/skel && \
+    cat ldd_list | sort -u > ldd_list_nodups && \
+    rm ldd_list && \
+    mv ldd_list_nodups ldd_list && \
+    while read file; do cp "$file" /etc/skel/lib/x86_64-linux-gnu/ 2>/dev/null || true; done < ldd_list && \
+    rm ldd_list && \
+    cp /lib64/ld-linux-x86-64.so.* /etc/skel/lib64/
+
+# Copy configuration files
+COPY gitbackup/sshd_config /etc/ssh/sshd_config
+COPY gitbackup/rush.rc /etc/rush.rc
+
+# Copy scripts to root directory
+COPY gitbackup/pre-rush.sh /pre-rush.sh
+COPY gitbackup/get_project.py /get_project.py
+COPY gitbackup/get_project_list.py /get_project_list.py
+COPY gitbackup/check_and_create_new_users.py /check_and_create_new_users.py
+COPY gitbackup/set_key_overleaf.py /set_key_overleaf.py
+COPY gitbackup/get_key_overleaf.py /get_key_overleaf.py
+COPY gitbackup/make_new_user.sh /make_new_user.sh
+
+# Set proper permissions for scripts
+RUN chmod +x /pre-rush.sh \
+           /get_project.py \
+           /get_project_list.py \
+           /check_and_create_new_users.py \
+           /set_key_overleaf.py \
+           /get_key_overleaf.py \
+           /make_new_user.sh
+
+# Create log directory and file
+RUN mkdir -p /var/log && \
+    touch /var/log/createuser.log && \
+    chmod 644 /var/log/createuser.log
+
+# Set up cronjob - runs every 5 minutes
+RUN echo "*/5 * * * * root /usr/bin/bash -c \" ( source /etc/overleaf/docker-env ; /usr/bin/date ; /usr/bin/python3 /check_and_create_new_users.py ) 2>&1 | /usr/bin/logger \" " >> /etc/crontab
+
+
+# Set up sudoers (BUILD TIME)
+RUN echo "root ALL=(ALL) ALL" > /etc/sudoers
+
+# Set up comprehensive logrotate configuration for all log files
+RUN echo '# System logs' > /etc/logrotate.d/system-logs && \
+    echo '/var/log/createuser.log {' >> /etc/logrotate.d/system-logs && \
+    echo '    daily' >> /etc/logrotate.d/system-logs && \
+    echo '    rotate 14' >> /etc/logrotate.d/system-logs && \
+    echo '    compress' >> /etc/logrotate.d/system-logs && \
+    echo '    delaycompress' >> /etc/logrotate.d/system-logs && \
+    echo '    missingok' >> /etc/logrotate.d/system-logs && \
+    echo '    notifempty' >> /etc/logrotate.d/system-logs && \
+    echo '    create 644 root root' >> /etc/logrotate.d/system-logs && \
+    echo '    sharedscripts' >> /etc/logrotate.d/system-logs && \
+    echo '    postrotate' >> /etc/logrotate.d/system-logs && \
+    echo '        /usr/bin/killall -HUP syslogd 2>/dev/null || true' >> /etc/logrotate.d/system-logs && \
+    echo '    endscript' >> /etc/logrotate.d/system-logs && \
+    echo '}' >> /etc/logrotate.d/system-logs && \
+    chmod 644 /etc/logrotate.d/system-logs
+
+# Set up logrotate cron job
+RUN echo "0 2 * * * root /usr/bin/bash -c \" /usr/sbin/logrotate /etc/logrotate.conf 2>&1 \" " >> /etc/crontab
+
+# Copy and set up initialization script
+COPY gitbackup/init.sh /init.sh
+RUN chmod +x /init.sh
+
+RUN tar -cf /etc_backup.tgz /etc
+
+# Expose SSH port
+EXPOSE 22
+
+# Use phusion/baseimage's proper entrypoint
+ENTRYPOINT ["/init.sh"]

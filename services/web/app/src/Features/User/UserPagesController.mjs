@@ -147,6 +147,10 @@ async function settingsPage(req, res) {
       aiErrorAssistant: {
         enabled: Boolean(user.aiErrorAssistant?.enabled),
       },
+      sshkeys: {
+        Public: user.sshPublicKey,
+        Private: user.sshPrivateKey,
+      },
     },
     labsExperiments: user.labsExperiments ?? [],
     hasPassword: !!user.hashedPassword,
