@@ -125,6 +125,8 @@ module.exports = Router = {
       HttpApiController.countConnectedClients
     )
 
+    app.get('/active-projects', HttpApiController.getAllActiveProjects)
+
     app.post('/drain', HttpApiController.startDrain)
     app.post(
       '/client/:client_id/disconnect',

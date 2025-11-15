@@ -1,0 +1,13 @@
+extends ../../../../../app/views/layout-marketing.pug
+include ../../../../../app/views/_mixins/bookmarkable_tabset
+
+block entrypointVar
+  - entrypoint = 'modules/admin-project-list/pages/project-list-page'
+
+block append meta
+  meta(name='ol-user' data-type='json' content=user)
+
+block content
+  #main-content.content.content-alt
+    .container
+      #project-list-page-root
