@@ -520,11 +520,12 @@ async function initSymbolPalette() {
                 const modal = document.querySelector('#latex-editor-modal-root')
                 if (modal && modal.__latexEditor && modal.__latexEditor.insert) {
                     modal.__latexEditor.insert(canonical)
-                    return
                 }
             } catch (e) {
                 console.warn('[symbol-palette] direct insert failed:', e)
             }
+            // Always return after right-click to prevent textarea state contamination
+            return
         }
 
         // Otherwise insert into the modal textarea (normal behavior)
