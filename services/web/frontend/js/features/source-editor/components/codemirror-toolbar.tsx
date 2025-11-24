@@ -210,11 +210,6 @@ const Toolbar = memo(function Toolbar() {
             <DetachCompileButtonWrapper />
           </div>
         </div>
-        {sourceEditorToolbarComponents.map(
-          ({ import: { default: Component }, path }) => (
-            <Component key={path} />
-          )
-        )}
         {newEditor && breadcrumbs && <Breadcrumbs />}
       </div>
     </>

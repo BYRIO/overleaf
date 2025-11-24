@@ -16,6 +16,11 @@ import { isMac } from '@/shared/utils/os'
 import { useProjectContext } from '@/shared/context/project-context'
 import { useEditorPropertiesContext } from '@/features/ide-react/context/editor-properties-context'
 import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
+import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
+
+const sourceEditorToolbarComponents = importOverleafModules(
+  'sourceEditorToolbarComponents'
+)
 
 export const ToolbarItems: FC<{
   state: EditorState
@@ -104,6 +109,11 @@ export const ToolbarItems: FC<{
               data-overflow="group-math"
               aria-label={t('toolbar_insert_math_and_symbols')}
             >
+              {sourceEditorToolbarComponents.map(
+                ({ import: { default: Component }, path }) => (
+                  <Component key={path} />
+                )
+              )}
               <MathDropdown />
               {symbolPaletteAvailable && (
                 <ToolbarButton

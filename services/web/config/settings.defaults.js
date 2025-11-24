@@ -1008,7 +1008,12 @@ module.exports = {
     diagnosticActions: [],
     sourceEditorCompletionSources: [],
     sourceEditorSymbolPalette: [],
-    sourceEditorToolbarComponents: [],
+    sourceEditorToolbarComponents: [
+        Path.resolve(
+            __dirname,
+            '../modules/latex-editor/frontend/components/latex-editor-toolbar-button'
+        ),
+    ],
     mainEditorLayoutModals: [],
     langFeedbackLinkingWidgets: [],
     labsExperiments: [],
@@ -1061,6 +1066,7 @@ module.exports = {
     'launchpad',
     'server-ce-scripts',
     'sandbox',
+    'latex-editor',
     'user-activate',
     'admin-project-list',
     'track-changes',
