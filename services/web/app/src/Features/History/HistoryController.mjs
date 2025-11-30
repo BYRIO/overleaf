@@ -1,25 +1,3 @@
-async function getChangeUsers(req, res, next) {
-  const projectId = req.params.project_id
-  const response = await HistoryManager.promises.getChanges(projectId, {})
-  // response may be an array or an object with { changes: [], hasMore }
-  const entries = Array.isArray(response) ? response : response.changes
-  const userIdsSet = new Set()
-  for (const entry of entries) {
-    const users = (entry.meta && entry.meta.users) || []
-    for (const user of users) {
-      // user may be a v1 numeric id or a string user id; we only want string ids
-      if (typeof user === 'string') userIdsSet.add(user)
-      if (typeof user === 'number') {
-        // v1 id — we cannot reliably map here. Skip for now.
-      }
-    }
-  }
-  const userIds = Array.from(userIdsSet)
-  const projection = { first_name: 1, last_name: 1, email: 1 }
-  const usersArray = await UserGetter.promises.getUsers(userIds, projection)
-  const users = usersArray.map(u => ({ id: String(u._id), email: u.email, first_name: u.first_name, last_name: u.last_name }))
-  res.json(users)
-}
 // @ts-check
 
 import { setTimeout } from 'node:timers/promises'
@@ -583,7 +561,6 @@ export default {
   downloadZipOfVersion: expressify(downloadZipOfVersion),
   getLatestHistory: expressify(getLatestHistory),
   getChanges: expressify(getChanges),
-  getChangeUsers: expressify(getChangeUsers),
   _displayNameForUser,
   promises: {
     _pipeHistoryZipToResponse,

@@ -130,17 +130,9 @@ export default {
       AnalyticsRegistrationSourceMiddleware.clearSource()
     )
 
-    // Allow front-end to toggle track-changes state on a per-project basis
-    webRouter.get('/_debug/track_changes_routes', (req, res) => {
-      res.json({ registered: true })
-    })
-    webRouter.post(
-      '/project/:Project_id/track_changes',
-      AuthenticationController.requireLogin(),
-      AuthorizationMiddleware.blockRestrictedUserFromProject,
-      AuthorizationMiddleware.ensureUserCanReadProject,
-      CollaboratorsController.saveTrackChanges
-    )
+    // Track-changes toggling is handled by the track-changes module, which
+    // registers a centralized route when enabled. We no longer register this
+    // route here to avoid duplication.
 
     webRouter.get(
       '/project/:Project_id/tokens',

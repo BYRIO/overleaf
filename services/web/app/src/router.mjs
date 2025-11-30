@@ -31,6 +31,7 @@ import ProjectDownloadsController from './Features/Downloads/ProjectDownloadsCon
 import FileStoreController from './Features/FileStore/FileStoreController.mjs'
 import DocumentUpdaterController from './Features/DocumentUpdater/DocumentUpdaterController.mjs'
 import HistoryRouter from './Features/History/HistoryRouter.mjs'
+import TrackChangesController from '../../modules/track-changes/app/src/TrackChangesController.mjs'
 import ExportsController from './Features/Exports/ExportsController.mjs'
 import PasswordResetRouter from './Features/PasswordReset/PasswordResetRouter.mjs'
 import StaticPagesRouter from './Features/StaticPages/StaticPagesRouter.mjs'
@@ -996,6 +997,103 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     )
   }
 
+  // Register Track Changes routes directly in the main router for consolidation
+  // Only register routes if the module is enabled in Settings.moduleImportSequence
+  if (Settings.moduleImportSequence && Settings.moduleImportSequence.includes('track-changes')) {
+  // Thread operations scoped to a document
+  webRouter.post(
+    '/project/:project_id/doc/:doc_id/thread/:thread_id/resolve',
+    AuthenticationController.requireLogin(),
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    AuthorizationMiddleware.ensureUserCanDeleteOrResolveThread,
+    TrackChangesController.resolveThread
+  )
+
+  webRouter.post(
+    '/project/:project_id/doc/:doc_id/thread/:thread_id/reopen',
+    AuthenticationController.requireLogin(),
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    AuthorizationMiddleware.ensureUserCanDeleteOrResolveThread,
+    TrackChangesController.reopenThread
+  )
+
+  webRouter.delete(
+    '/project/:project_id/doc/:doc_id/thread/:thread_id',
+    AuthenticationController.requireLogin(),
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    AuthorizationMiddleware.ensureUserCanDeleteOrResolveThread,
+    TrackChangesController.deleteThread
+  )
+
+  webRouter.post(
+    '/project/:Project_id/track_changes',
+    AuthenticationController.requireLogin(),
+    AuthorizationMiddleware.blockRestrictedUserFromProject,
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    TrackChangesController.saveTrackChanges
+  )
+
+  }
+
+  // Optional proxy to Chat endpoints for thread messages
+  webRouter.get(
+    '/project/:project_id/threads',
+    AuthorizationMiddleware.blockRestrictedUserFromProject,
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    PermissionsController.requirePermission('chat'),
+    TrackChangesController.getThreads
+  )
+
+  // GET project ranges
+  webRouter.get(
+    '/project/:project_id/ranges',
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    TrackChangesController.getRanges
+  )
+
+  // GET changes users
+  webRouter.get(
+    '/project/:project_id/changes/users',
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    TrackChangesController.getChangesUsers
+  )
+
+  webRouter.post(
+    '/project/:project_id/thread/:thread_id/messages',
+    AuthenticationController.requireLogin(),
+    AuthorizationMiddleware.blockRestrictedUserFromProject,
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    PermissionsController.requirePermission('chat'),
+    TrackChangesController.sendMessage
+  )
+
+  webRouter.post(
+    '/project/:project_id/thread/:thread_id/messages/:message_id/edit',
+    AuthenticationController.requireLogin(),
+    AuthorizationMiddleware.blockRestrictedUserFromProject,
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    PermissionsController.requirePermission('chat'),
+    TrackChangesController.editMessage
+  )
+
+  webRouter.delete(
+    '/project/:project_id/thread/:thread_id/messages/:message_id',
+    AuthenticationController.requireLogin(),
+    AuthorizationMiddleware.blockRestrictedUserFromProject,
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    PermissionsController.requirePermission('chat'),
+    TrackChangesController.deleteMessage
+  )
+
+  webRouter.delete(
+    '/project/:project_id/thread/:thread_id/own-messages/:message_id',
+    AuthenticationController.requireLogin(),
+    AuthorizationMiddleware.blockRestrictedUserFromProject,
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    PermissionsController.requirePermission('chat'),
+    TrackChangesController.deleteOwnMessage
+  )
+
   webRouter.post(
     '/project/:Project_id/references/indexAll',
     AuthorizationMiddleware.ensureUserCanReadProject,
@@ -1233,22 +1331,24 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
   webRouter.get('/unsupported-browser', renderUnsupportedBrowserPage)
 
   webRouter.get('*', ErrorController.notFound)
-  // After registering all routes, output a small diagnostic list of doc/range routes
-  try {
-    const stack = webRouter.stack || webRouter._router?.stack || []
-    const routes = []
-    for (const layer of stack) {
-      if (layer.route && layer.route.path) {
-        const methods = Object.keys(layer.route.methods).join(',').toUpperCase()
-        routes.push(`${methods} ${layer.route.path}`)
+  // After registering all routes, optionally output a small diagnostic list of doc/range routes
+  if (Settings.debugRoutes) {
+    try {
+      const stack = webRouter.stack || webRouter._router?.stack || []
+      const routes = []
+      for (const layer of stack) {
+        if (layer.route && layer.route.path) {
+          const methods = Object.keys(layer.route.methods).join(',').toUpperCase()
+          routes.push(`${methods} ${layer.route.path}`)
+        }
       }
+      const interesting = routes.filter(r => r.includes('/doc/') || r.includes('changes/accept') || r.includes('thread'))
+      for (const r of interesting) {
+        logger.info({ route: r }, 'registered route')
+      }
+    } catch (err) {
+      logger.err({ err }, 'error listing routes for diagnostics')
     }
-    const interesting = routes.filter(r => r.includes('/doc/') || r.includes('changes/accept') || r.includes('thread'))
-    for (const r of interesting) {
-      logger.info({ route: r }, 'registered route')
-    }
-  } catch (err) {
-    logger.err({ err }, 'error listing routes for diagnostics')
   }
 }
 
@@ -1291,4 +1391,7 @@ function _listRegisteredRoutesIfAvailable() {
 }
 
 // Try once after startup; best-effort, no side effects
-setTimeout(_listRegisteredRoutesIfAvailable, 6000)
+// Only run the diagnostic helper in debug mode where this is useful
+if (Settings.debugRoutes) {
+  setTimeout(_listRegisteredRoutesIfAvailable, 6000)
+}

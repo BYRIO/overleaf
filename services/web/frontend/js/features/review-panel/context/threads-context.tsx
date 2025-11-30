@@ -68,7 +68,7 @@ export const ThreadsProvider: FC<React.PropsWithChildren> = ({ children }) => {
   const { sendEvent } = useEditorAnalytics()
   const reviewPanelView = useReviewPanelViewContext()
 
-  // const [error, setError] = useState<Error>()
+  // Keep a placeholder for potential future error handling
   const [data, setData] = useState<Threads>()
 
   const isHistoryOT = currentDocument?.isHistoryOT()

@@ -1052,6 +1052,10 @@ module.exports = {
   ],
   viewIncludes: {},
 
+  // Debug and diagnostics
+  // When true, the router will emit additional debug information about registered routes.
+  debugRoutes: process.env.DEBUG_ROUTES === 'true',
+
   csp: {
     enabled: process.env.CSP_ENABLED === 'true',
     reportOnly: process.env.CSP_REPORT_ONLY === 'true',

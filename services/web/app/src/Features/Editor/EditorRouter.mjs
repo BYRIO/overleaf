@@ -71,8 +71,7 @@ export default {
       AuthorizationMiddleware.ensureUserCanReadProject,
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
       DocumentUpdaterController.acceptChanges
-    )
-    logger.info({ route: 'POST /project/:Project_id/doc/:doc_id/changes/accept' }, 'EditorRouter applied route')
+      )
 
     // Called by the real-time API to load up the current project state.
     // This is a post request because it's more than just a getting of data. We take actions

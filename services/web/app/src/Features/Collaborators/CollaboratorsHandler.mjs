@@ -24,7 +24,6 @@ export default {
     addUserIdToProject,
     transferProjects,
     setCollaboratorPrivilegeLevel,
-    setTrackChanges,
     convertTrackChangesToExplicitFormat,
   },
 }
@@ -428,54 +427,5 @@ async function convertTrackChangesToExplicitFormat(
   return {}
 }
 
-async function setTrackChanges(projectId, body, actingUserId) {
-  // body: { on?: boolean, on_for?: Record<UserId, boolean>, on_for_guests?: boolean }
-  try {
-    const project = await ProjectGetter.promises.getProject(projectId, {
-      track_changes: 1,
-      collaberator_refs: 1,
-    })
-    if (!project) {
-      throw new Errors.ProjectNotFoundError('project not found')
-    }
-
-    let newState
-    // If `on` present, set boolean state
-    if (typeof body.on === 'boolean') {
-      newState = body.on
-    }
-
-    // Convert existing state to explicit object if we need to merge user entries
-    const existingIsObject = typeof project.track_changes === 'object'
-    let explicit = existingIsObject
-      ? { ...(project.track_changes || {}) }
-      : await convertTrackChangesToExplicitFormat(projectId, project.track_changes)
-
-    if (body.on_for) {
-      // only merge per-user entries
-      for (const [key, val] of Object.entries(body.on_for)) {
-        explicit[key] = val
-      }
-      newState = explicit
-    }
-
-    if (typeof body.on_for_guests === 'boolean') {
-      explicit.__guests__ = body.on_for_guests
-      newState = explicit
-    }
-
-    if (newState === undefined) {
-      // nothing to change
-      return
-    }
-
-    const update = { $set: { track_changes: newState } }
-    await Project.updateOne({ _id: projectId }, update).exec()
-
-    // Emit the updated state to the editor socket room
-    EditorRealTimeController.emitToRoom(projectId, 'toggle-track-changes', newState)
-  } catch (err) {
-    throw OError.tag(err, 'failed to set track changes')
-  }
-}
+// setTrackChanges has moved to the track-changes module's handler.
 

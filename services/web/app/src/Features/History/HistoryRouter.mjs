@@ -142,13 +142,9 @@ function apply(webRouter, privateApiRouter) {
     AuthorizationMiddleware.ensureUserCanReadProject,
     HistoryController.getChanges
   )
-  // Return users who have made changes in this project (for review panel)
-  webRouter.get(
-    '/project/:project_id/changes/users',
-    AuthorizationMiddleware.blockRestrictedUserFromProject,
-    AuthorizationMiddleware.ensureUserCanReadProject,
-    HistoryController.getChangeUsers
-  )
+  // NOTE: `/project/:project_id/changes/users` is served by the TrackChanges
+  // module to provide tracked-changes specific users. Do not register a
+  // duplicate route here to avoid conflicts.
 }
 
 export default { apply }

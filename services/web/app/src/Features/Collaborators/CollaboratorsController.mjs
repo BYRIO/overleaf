@@ -26,7 +26,6 @@ export default {
   removeSelfFromProject: expressify(removeSelfFromProject),
   getAllMembers: expressify(getAllMembers),
   setCollaboratorInfo: expressify(setCollaboratorInfo),
-  saveTrackChanges: expressify(saveTrackChanges),
   transferOwnership: expressify(transferOwnership),
   getShareTokens: expressify(getShareTokens),
 }
@@ -246,28 +245,5 @@ const saveTrackChangesSchema = z.object({
   }),
 })
 
-async function saveTrackChanges(req, res, next) {
-  try {
-    logger.debug({ url: req.originalUrl, method: req.method, headers: req.headers }, 'saveTrackChanges called')
-    const { params, body } = validateReq(req, saveTrackChangesSchema)
-    const projectId = params.Project_id
-    const userId = SessionManager.getLoggedInUserId(req.session)
 
-    // Only logged-in users can toggle for a user id explicitly via `on_for`.
-    if (body.on_for && (!userId || Object.keys(body.on_for).some(id => id !== userId))) {
-      // Other user IDs cannot be toggled by a regular user.
-      return res.sendStatus(403)
-    }
-
-    await CollaboratorsHandler.promises.setTrackChanges(
-      projectId,
-      body,
-      userId
-    )
-
-    res.sendStatus(204)
-  } catch (err) {
-    next(err)
-  }
-}
 
