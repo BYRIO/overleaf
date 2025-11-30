@@ -2,32 +2,11 @@ import { callbackify } from 'node:util'
 import OError from '@overleaf/o-error'
 import { Project } from '../../../../app/src/models/Project.js'
 import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
-import CollaboratorsGetter from '../../../../app/src/Features/Collaborators/CollaboratorsGetter.mjs'
 import EditorRealTimeController from '../../../../app/src/Features/Editor/EditorRealTimeController.mjs'
-import PrivilegeLevels from '../../../../app/src/Features/Authorization/PrivilegeLevels.js'
+import { convertTrackChangesToExplicitFormat } from '../../../../app/src/Features/Collaborators/track-changes-utils.mjs'
 import logger from '@overleaf/logger'
 
-export async function convertTrackChangesToExplicitFormat(projectId, trackChangesState) {
-  if (typeof trackChangesState === 'object') {
-    return { ...trackChangesState }
-  }
-
-  if (trackChangesState === true) {
-    // track changes are enabled for all
-    const members = await CollaboratorsGetter.promises.getMemberIdsWithPrivilegeLevels(projectId)
-
-    const newTrackChangesState = {}
-    for (const { id, privilegeLevel } of members) {
-      if ([PrivilegeLevels.OWNER, PrivilegeLevels.READ_AND_WRITE, PrivilegeLevels.REVIEW].includes(privilegeLevel)) {
-        newTrackChangesState[id] = true
-      }
-    }
-
-    return newTrackChangesState
-  }
-
-  return {}
-}
+// use shared convertTrackChangesToExplicitFormat imported from Collaborators
 
 async function setTrackChanges(projectId, body, actingUserId) {
   // body: { on?: boolean, on_for?: Record<UserId, boolean>, on_for_guests?: boolean }

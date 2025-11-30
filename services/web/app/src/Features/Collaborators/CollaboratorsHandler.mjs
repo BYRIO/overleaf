@@ -7,6 +7,7 @@ import ContactManager from '../Contacts/ContactManager.mjs'
 import PrivilegeLevels from '../Authorization/PrivilegeLevels.js'
 import TpdsProjectFlusher from '../ThirdPartyDataStore/TpdsProjectFlusher.mjs'
 import CollaboratorsGetter from './CollaboratorsGetter.mjs'
+import { convertTrackChangesToExplicitFormat } from './track-changes-utils.mjs'
 import Errors from '../Errors/Errors.js'
 import TpdsUpdateSender from '../ThirdPartyDataStore/TpdsUpdateSender.mjs'
 import EditorRealTimeController from '../Editor/EditorRealTimeController.mjs'
@@ -393,39 +394,7 @@ async function _flushProjects(projectIds) {
   }
 }
 
-async function convertTrackChangesToExplicitFormat(
-  projectId,
-  trackChangesState
-) {
-  if (typeof trackChangesState === 'object') {
-    return { ...trackChangesState }
-  }
-
-  if (trackChangesState === true) {
-    // track changes are enabled for all
-    const members =
-      await CollaboratorsGetter.promises.getMemberIdsWithPrivilegeLevels(
-        projectId
-      )
-
-    const newTrackChangesState = {}
-    for (const { id, privilegeLevel } of members) {
-      if (
-        [
-          PrivilegeLevels.OWNER,
-          PrivilegeLevels.READ_AND_WRITE,
-          PrivilegeLevels.REVIEW,
-        ].includes(privilegeLevel)
-      ) {
-        newTrackChangesState[id] = true
-      }
-    }
-
-    return newTrackChangesState
-  }
-
-  return {}
-}
+// convertTrackChangesToExplicitFormat is provided by `track-changes-utils.mjs`
 
 // setTrackChanges has moved to the track-changes module's handler.
 
