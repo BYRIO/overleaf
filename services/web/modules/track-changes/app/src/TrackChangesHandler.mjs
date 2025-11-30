@@ -3,7 +3,7 @@ import OError from '@overleaf/o-error'
 import { Project } from '../../../../app/src/models/Project.js'
 import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
 import EditorRealTimeController from '../../../../app/src/Features/Editor/EditorRealTimeController.mjs'
-import { convertTrackChangesToExplicitFormat } from '../../../../app/src/Features/Collaborators/track-changes-utils.mjs'
+import { convertTrackChangesToExplicitFormat } from '../../../../app/src/Features/Helpers/TrackChangesHelper.mjs'
 import logger from '@overleaf/logger'
 
 // use shared convertTrackChangesToExplicitFormat imported from Collaborators

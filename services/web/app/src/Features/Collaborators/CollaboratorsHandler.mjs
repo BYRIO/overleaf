@@ -7,7 +7,7 @@ import ContactManager from '../Contacts/ContactManager.mjs'
 import PrivilegeLevels from '../Authorization/PrivilegeLevels.js'
 import TpdsProjectFlusher from '../ThirdPartyDataStore/TpdsProjectFlusher.mjs'
 import CollaboratorsGetter from './CollaboratorsGetter.mjs'
-import { convertTrackChangesToExplicitFormat } from './track-changes-utils.mjs'
+import { convertTrackChangesToExplicitFormat } from '../Helpers/TrackChangesHelper.mjs'
 import Errors from '../Errors/Errors.js'
 import TpdsUpdateSender from '../ThirdPartyDataStore/TpdsUpdateSender.mjs'
 import EditorRealTimeController from '../Editor/EditorRealTimeController.mjs'
@@ -393,7 +393,7 @@ async function _flushProjects(projectIds) {
   }
 }
 
-// convertTrackChangesToExplicitFormat is provided by `track-changes-utils.mjs`
+// convertTrackChangesToExplicitFormat is provided by `Features/Helpers/TrackChangesHelper.mjs`
 
 // setTrackChanges has moved to the track-changes module's handler.
 
