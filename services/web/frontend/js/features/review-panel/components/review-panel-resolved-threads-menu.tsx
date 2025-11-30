@@ -33,8 +33,26 @@ export const ReviewPanelResolvedThreadsMenu: FC = () => {
       }
     }
 
+    // fallback: thread messages can contain doc_id; use that to find a doc name
+    try {
+      for (const [threadId, thread] of Object.entries(threads ?? {})) {
+        const msg = thread.messages?.[0]
+        const docIdFromMessage = (msg as any)?.doc_id
+        if (docIdFromMessage) {
+          const docName = docs?.find(
+            doc => (otMigrationStage === 1 ? doc.path : doc.doc.id) === docIdFromMessage
+          )?.doc.name
+          if (docName) {
+            docNameForThread.set(threadId, docName)
+          }
+        }
+      }
+    } catch (err) {
+      // ignore, threads may be undefined or have different types
+    }
+
     return docNameForThread
-  }, [docs, projectRanges])
+  }, [docs, projectRanges, threads])
 
   const allComments = useMemo(() => {
     const allComments = new Map<
@@ -112,6 +130,7 @@ export const ReviewPanelResolvedThreadsMenu: FC = () => {
             key={thread.id}
             id={thread.id as ThreadId}
             comment={comment}
+            thread={threads?.[thread.id as string]}
             docName={docNameForThread.get(thread.id) ?? t('unknown')}
           />
         )

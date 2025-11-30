@@ -1,6 +1,7 @@
 import React, { FC, useCallback, useState } from 'react'
 import { useTranslation, Trans } from 'react-i18next'
 import { ThreadId } from '../../../../../types/review-panel/review-panel'
+import { ReviewPanelCommentThread } from '../../../../../types/review-panel/comment-thread'
 import { useThreadsActionsContext } from '../context/threads-context'
 import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import MaterialIcon from '@/shared/components/material-icon'
@@ -17,7 +18,8 @@ export const ReviewPanelResolvedThread: FC<{
   id: ThreadId
   comment: Change<CommentOperation>
   docName: string
-}> = ({ id, comment, docName }) => {
+  thread?: ReviewPanelCommentThread
+}> = ({ id, comment, docName, thread }) => {
   const { t } = useTranslation()
   const { reopenThread, deleteThread } = useThreadsActionsContext()
   const [processing, setProcessing] = useState(false)
@@ -122,7 +124,7 @@ export const ReviewPanelResolvedThread: FC<{
         </div>
         <ExpandableContent
           className="review-panel-resolved-comment-quoted-text-quote"
-          content={comment?.op.c}
+          content={comment?.op.c || thread?.messages?.[0]?.content}
           checkNewLines
           translate="no"
         />

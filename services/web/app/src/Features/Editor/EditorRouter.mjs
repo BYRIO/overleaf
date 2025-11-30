@@ -1,8 +1,10 @@
 import EditorHttpController from './EditorHttpController.mjs'
+import DocumentUpdaterController from '../DocumentUpdater/DocumentUpdaterController.mjs'
 import AuthenticationController from '../Authentication/AuthenticationController.mjs'
 import AuthorizationMiddleware from '../Authorization/AuthorizationMiddleware.mjs'
 import { RateLimiter } from '../../infrastructure/RateLimiter.js'
 import RateLimiterMiddleware from '../Security/RateLimiterMiddleware.mjs'
+import logger from '@overleaf/logger'
 
 const rateLimiters = {
   addDocToProject: new RateLimiter('add-doc-to-project', {
@@ -61,6 +63,16 @@ export default {
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
       EditorHttpController.deleteFolder
     )
+
+    // Accept changes on a document - called by review panel UI
+    webRouter.post(
+      '/project/:Project_id/doc/:doc_id/changes/accept',
+      AuthenticationController.requireLogin(),
+      AuthorizationMiddleware.ensureUserCanReadProject,
+      AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      DocumentUpdaterController.acceptChanges
+    )
+    logger.info({ route: 'POST /project/:Project_id/doc/:doc_id/changes/accept' }, 'EditorRouter applied route')
 
     // Called by the real-time API to load up the current project state.
     // This is a post request because it's more than just a getting of data. We take actions

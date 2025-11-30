@@ -204,16 +204,25 @@ async function clearProjectState(projectId) {
  * @param {string[]} changeIds
  */
 async function acceptChanges(projectId, docId, changeIds, userId) {
-  await fetchNothing(
-    `${BASE_URL}/project/${projectId}/doc/${docId}/change/accept`,
-    {
+  const url = `${BASE_URL}/project/${projectId}/doc/${docId}/change/accept`
+  logger.debug({ projectId, docId, url, changeIds }, 'Calling document-updater acceptChanges')
+  try {
+    await fetchNothing(url, {
       method: 'POST',
       json: { change_ids: changeIds },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    }
-  )
+    })
+  } catch (err) {
+    logger.err({ err, projectId, docId, changeIds, url }, 'error calling document-updater acceptChanges')
+    throw err
+  }
 
-  await Modules.promises.hooks.fire('changesAccepted', projectId, docId, userId)
+  try {
+    await Modules.promises.hooks.fire('changesAccepted', projectId, docId, userId)
+  } catch (err) {
+    // Hooks should not prevent the user API call from succeeding, but log.
+    logger.warn({ err, projectId, docId }, 'hook failed after changesAccepted')
+  }
 }
 
 /**

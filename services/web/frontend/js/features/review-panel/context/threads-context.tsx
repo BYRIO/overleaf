@@ -15,6 +15,7 @@ import {
 } from '../../../../../types/review-panel/review-panel'
 import { ReviewPanelCommentThread } from '../../../../../types/review-panel/comment-thread'
 import { useConnectionContext } from '@/features/ide-react/context/connection-context'
+import { useUserContext } from '@/shared/context/user-context'
 import useSocketListener from '@/features/ide-react/hooks/use-socket-listener'
 import { UserId } from '../../../../../types/user'
 import { deleteJSON, getJSON, postJSON } from '@/infrastructure/fetch-json'
@@ -94,6 +95,7 @@ export const ThreadsProvider: FC<React.PropsWithChildren> = ({ children }) => {
   }, [projectId, isRestrictedTokenMember])
 
   const { socket } = useConnectionContext()
+  const user = useUserContext()
 
   useSocketListener(
     socket,
@@ -293,12 +295,45 @@ export const ThreadsProvider: FC<React.PropsWithChildren> = ({ children }) => {
         await postJSON(
           `/project/${projectId}/doc/${currentDocument.doc_id}/thread/${threadId}/resolve`
         )
+        // Update local state optimistically so the UI reflects the resolved state
+        setData(value => {
+          if (value) {
+            const thread = value[threadId] ?? { messages: [] }
+            return {
+              ...value,
+              [threadId]: {
+                ...thread,
+                resolved: true,
+                resolved_by_user: user || undefined,
+                resolved_by_user_id: (user as any)?.id || undefined,
+                resolved_at: new Date().toISOString(),
+              },
+            }
+          }
+          return value
+        })
         sendEvent('rp-comment-resolve', { view: reviewPanelView })
       },
       async reopenThread(threadId: string) {
         await postJSON(
           `/project/${projectId}/doc/${currentDocument.doc_id}/thread/${threadId}/reopen`
         )
+        // Update local state optimistically so the UI reflects the reopened state
+        setData(value => {
+          if (value) {
+            const thread = value[threadId] ?? { messages: [] }
+            const newThread = { ...thread } as Record<string, any>
+            delete newThread.resolved
+            delete newThread.resolved_by_user
+            delete newThread.resolved_by_user_id
+            delete newThread.resolved_at
+            return {
+              ...value,
+              [threadId]: newThread as ReviewPanelCommentThread,
+            }
+          }
+          return value
+        })
         sendEvent('rp-comment-reopen')
       },
       async deleteThread(threadId: string) {
@@ -306,6 +341,15 @@ export const ThreadsProvider: FC<React.PropsWithChildren> = ({ children }) => {
           `/project/${projectId}/doc/${currentDocument.doc_id}/thread/${threadId}`
         )
         currentDocument.ranges?.removeCommentId(threadId)
+        // Remove from local state so UI updates immediately
+        setData(value => {
+          if (value) {
+            const _value = { ...value }
+            delete _value[threadId]
+            return _value
+          }
+          return value
+        })
         sendEvent('rp-comment-delete')
       },
       async addMessage(threadId: ThreadId, content: string) {

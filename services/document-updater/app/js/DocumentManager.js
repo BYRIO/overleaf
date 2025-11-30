@@ -505,7 +505,12 @@ const DocumentManager = {
     )
 
     if (historyRangesSupport) {
-      await RedisManager.promises.updateCommentState(docId, commentId, false)
+      // When a comment is deleted in a document with history ranges support,
+      // mark it as resolved before queuing the delete update. This ensures
+      // that comments are tracked as resolved for project history and
+      // consistent with frontend expectations that deleted comments are
+      // treated as resolved for historical purposes.
+      await RedisManager.promises.updateCommentState(docId, commentId, true)
       await ProjectHistoryRedisManager.promises.queueOps(
         projectId,
         JSON.stringify({

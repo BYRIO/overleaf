@@ -268,6 +268,7 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
   }
 
   EditorRouter.apply(webRouter, privateApiRouter)
+  logger.info('About to apply CollaboratorsRouter')
   CollaboratorsRouter.apply(webRouter, privateApiRouter)
   SubscriptionRouter.apply(webRouter, privateApiRouter, publicApiRouter)
   UploadsRouter.apply(webRouter, privateApiRouter)
@@ -1232,6 +1233,62 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
   webRouter.get('/unsupported-browser', renderUnsupportedBrowserPage)
 
   webRouter.get('*', ErrorController.notFound)
+  // After registering all routes, output a small diagnostic list of doc/range routes
+  try {
+    const stack = webRouter.stack || webRouter._router?.stack || []
+    const routes = []
+    for (const layer of stack) {
+      if (layer.route && layer.route.path) {
+        const methods = Object.keys(layer.route.methods).join(',').toUpperCase()
+        routes.push(`${methods} ${layer.route.path}`)
+      }
+    }
+    const interesting = routes.filter(r => r.includes('/doc/') || r.includes('changes/accept') || r.includes('thread'))
+    for (const r of interesting) {
+      logger.info({ route: r }, 'registered route')
+    }
+  } catch (err) {
+    logger.err({ err }, 'error listing routes for diagnostics')
+  }
 }
 
 export default { initialize, rateLimiters }
+
+// Debugging helper: list registered web routes (best-effort)
+function _listRegisteredRoutesIfAvailable() {
+  try {
+    // Import the app module that created and exported webRouter if possible
+    const appModule = require('./app.mjs')
+    const webRouter = appModule?.webRouter || appModule?.getWebRouter?.()
+    if (!webRouter) {
+      logger.info('web router object not available for route inspection')
+      return
+    }
+    const stack = webRouter.stack || webRouter._router?.stack || []
+    const routes = []
+    for (const layer of stack) {
+      if (layer.route && layer.route.path) {
+        const methods = Object.keys(layer.route.methods).join(',').toUpperCase()
+        routes.push(`${methods} ${layer.route.path}`)
+      } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
+        for (const nested of layer.handle.stack) {
+          if (nested.route && nested.route.path) {
+            const methods = Object.keys(nested.route.methods).join(',').toUpperCase()
+            routes.push(`${methods} ${nested.route.path}`)
+          }
+        }
+      }
+    }
+    logger.info({ routesCount: routes.length }, 'web router contains routes')
+    const interesting = routes.filter(r => r.includes('/doc/') || r.includes('changes/accept') || r.includes('thread'))
+    for (const r of interesting) {
+      logger.info({ route: r }, 'web router route')
+    }
+  } catch (err) {
+    // Non-fatal debug logging
+    logger.err({ err }, 'unable to list registered routes')
+  }
+}
+
+// Try once after startup; best-effort, no side effects
+setTimeout(_listRegisteredRoutesIfAvailable, 6000)

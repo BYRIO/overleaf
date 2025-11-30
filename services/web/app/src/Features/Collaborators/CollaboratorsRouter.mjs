@@ -3,6 +3,7 @@ import AuthenticationController from '../Authentication/AuthenticationController
 import AuthorizationMiddleware from '../Authorization/AuthorizationMiddleware.mjs'
 import CollaboratorsInviteController from './CollaboratorsInviteController.mjs'
 import { RateLimiter } from '../../infrastructure/RateLimiter.js'
+import logger from '@overleaf/logger'
 import RateLimiterMiddleware from '../Security/RateLimiterMiddleware.mjs'
 import CaptchaMiddleware from '../Captcha/CaptchaMiddleware.mjs'
 import AnalyticsRegistrationSourceMiddleware from '../Analytics/AnalyticsRegistrationSourceMiddleware.mjs'
@@ -32,6 +33,7 @@ const rateLimiters = {
 
 export default {
   apply(webRouter) {
+    logger.info('Applying CollaboratorsRouter')
     webRouter.post(
       '/project/:Project_id/leave',
       AuthenticationController.requireLogin(),
@@ -126,6 +128,18 @@ export default {
       AuthenticationController.requireLogin(),
       CollaboratorsInviteController.acceptInvite,
       AnalyticsRegistrationSourceMiddleware.clearSource()
+    )
+
+    // Allow front-end to toggle track-changes state on a per-project basis
+    webRouter.get('/_debug/track_changes_routes', (req, res) => {
+      res.json({ registered: true })
+    })
+    webRouter.post(
+      '/project/:Project_id/track_changes',
+      AuthenticationController.requireLogin(),
+      AuthorizationMiddleware.blockRestrictedUserFromProject,
+      AuthorizationMiddleware.ensureUserCanReadProject,
+      CollaboratorsController.saveTrackChanges
     )
 
     webRouter.get(

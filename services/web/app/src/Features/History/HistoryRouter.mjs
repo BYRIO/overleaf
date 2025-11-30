@@ -142,6 +142,13 @@ function apply(webRouter, privateApiRouter) {
     AuthorizationMiddleware.ensureUserCanReadProject,
     HistoryController.getChanges
   )
+  // Return users who have made changes in this project (for review panel)
+  webRouter.get(
+    '/project/:project_id/changes/users',
+    AuthorizationMiddleware.blockRestrictedUserFromProject,
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    HistoryController.getChangeUsers
+  )
 }
 
 export default { apply }
