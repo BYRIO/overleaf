@@ -60,10 +60,8 @@ async function setTrackChanges(projectId, body, actingUserId) {
 }
 
 export default {
-  convertTrackChangesToExplicitFormat: callbackify(convertTrackChangesToExplicitFormat),
   setTrackChanges: callbackify(setTrackChanges),
   promises: {
-    convertTrackChangesToExplicitFormat,
     setTrackChanges,
   },
 }
