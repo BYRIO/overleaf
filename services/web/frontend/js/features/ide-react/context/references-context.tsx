@@ -31,8 +31,10 @@ export const ReferencesContext = createContext<
       referenceKeys: Set<string>
       indexAllReferences: (shouldBroadcast: boolean) => Promise<void>
       searchLocalReferences: (
-        query: string
-      ) => Promise<AdvancedReferenceSearchResult>
+            query: string,
+            fields?: string[]
+          ) => Promise<AdvancedReferenceSearchResult>
+      listLocalReferences: (limit?: number) => Promise<AdvancedReferenceSearchResult>
     }
   | undefined
 >(undefined)
@@ -189,12 +191,23 @@ export const ReferencesProvider: FC<React.PropsWithChildren> = ({
   }, [projectJoined, indexAllReferences, socket])
 
   const searchLocalReferences = useCallback(
-    async (query: string): Promise<AdvancedReferenceSearchResult> => {
+    async (query: string, fields?: string[]): Promise<AdvancedReferenceSearchResult> => {
       if (!indexerRef.current) {
         return { hits: [] }
       }
       const indexer = await indexerRef.current
-      return await indexer.search(query)
+      return await indexer.search(query, fields)
+    },
+    []
+  )
+
+  const listLocalReferences = useCallback(
+    async (limit = 30): Promise<AdvancedReferenceSearchResult> => {
+      if (!indexerRef.current) {
+        return { hits: [] }
+      }
+      const indexer = await indexerRef.current
+      return await indexer.list(limit)
     },
     []
   )
@@ -204,8 +217,9 @@ export const ReferencesProvider: FC<React.PropsWithChildren> = ({
       referenceKeys,
       indexAllReferences,
       searchLocalReferences,
+      listLocalReferences,
     }),
-    [indexAllReferences, referenceKeys, searchLocalReferences]
+    [indexAllReferences, referenceKeys, searchLocalReferences, listLocalReferences]
   )
 
   return (

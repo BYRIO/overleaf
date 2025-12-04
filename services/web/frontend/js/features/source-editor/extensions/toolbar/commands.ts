@@ -166,3 +166,9 @@ export const toggleSearch: Command = view => {
 export const addComment = () => {
   window.dispatchEvent(new Event('add-new-review-comment'))
 }
+
+export const openReferencePicker: Command = view => {
+  // Open the reference picker modal via the global event; let the controller insert \cite{} if needed
+  window.dispatchEvent(new CustomEvent('reference:openPicker', { detail: {} }))
+  return true
+}

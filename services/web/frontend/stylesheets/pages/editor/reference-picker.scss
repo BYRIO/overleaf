@@ -1,0 +1,138 @@
+// Dedicated styles for Reference Picker modal
+.reference-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-02);
+
+  input[type="search"],
+  input[type="text"] {
+    width: 100%;
+    padding: var(--spacing-03);
+    border: 1px solid var(--border-divider);
+    border-radius: var(--border-radius-small);
+    font-size: var(--font-size-03);
+  }
+
+  .selected-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-02);
+    max-height: 72px;
+    overflow-y: auto;
+  }
+
+  .search-selectors {
+    display: flex;
+    gap: var(--spacing-02);
+    align-items: center;
+    font-size: var(--font-size-02);
+  }
+
+  [role="listbox"] {
+    max-height: calc(100vh - 320px);
+    overflow-y: auto;
+    border-top: 1px solid var(--border-divider);
+    border-bottom: 1px solid var(--border-divider);
+  }
+
+  /* Each result item is a label/option */
+  label[role="option"] {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-01);
+    padding: var(--spacing-02);
+    cursor: pointer;
+    border-left: var(--spacing-02) solid transparent;
+    outline: none;
+  }
+
+  /* Focused / Active item */
+  label[role="option"].focused,
+  label[role="option"]:focus {
+    background: var(--bg-secondary);
+    border-left-color: var(--content-primary);
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.03) inset;
+  }
+
+  /* Selected item */
+  label[role="option"][aria-selected='true'] {
+    font-weight: bold;
+    color: var(--content-positive);
+  }
+
+  /* Style for the checkbox so it doesn't take too much space */
+  label[role="option"] input[type="checkbox"] {
+    margin: 0 0 0 0;
+    flex: 0 0 auto;
+    align-self: flex-start;
+  }
+
+  /* Truncate long bibkeys/titles */
+  label[role="option"] span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+    max-width: calc(100% - 80px);
+  }
+
+  /* Force the hit fields to be block level and span full width so they align horizontally
+     with no indentation next to the checkbox */
+  label[role="option"] .hit-key,
+  label[role="option"] .hit-title,
+  label[role="option"] .hit-meta {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    padding-left: 0;
+    margin-left: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Head containing checkbox and key */
+  label[role="option"] .hit-head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-01);
+    flex: 0 0 auto;
+  }
+
+  /* Key sits inline next to checkbox; don't make it block like title/meta */
+  label[role="option"] .hit-head .hit-key {
+    display: inline-block;
+    padding-left: 0;
+    margin-left: 0;
+    width: auto;
+    max-width: calc(100% - 80px);
+  }
+
+  .hit-key {
+    font-weight: 600;
+    font-size: var(--font-size-02);
+    min-width: 0;
+    flex: 1 1 auto;
+    padding: 0;
+    color: var(--content-secondary);
+    text-align: left;
+  }
+
+  .selected-chips {
+    align-items: center;
+  }
+
+  .hit-title {
+    font-size: var(--font-size-02);
+    font-style: italic;
+    color: var(--content-primary);
+  }
+
+  .hit-meta {
+    font-size: var(--font-size-02);
+    color: var(--content-secondary);
+  }
+
+  /* Removed copy button for a leaner UX */
+}
+

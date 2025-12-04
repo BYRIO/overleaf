@@ -14,6 +14,9 @@ export class ReferenceIndexer {
   private searchResolve:
     | ((result: AdvancedReferenceSearchResult) => void)
     | null = null
+  private listResolve:
+    | ((result: AdvancedReferenceSearchResult) => void)
+    | null = null
 
   constructor() {
     this.worker = new Worker(
@@ -32,6 +35,9 @@ export class ReferenceIndexer {
     } else if (data.type === 'updateKeys' && this.updateResolve) {
       this.updateResolve(data.keys)
       this.updateResolve = null
+    } else if (data.type === 'listResult' && this.listResolve) {
+      this.listResolve(data.result)
+      this.listResolve = null
     } else {
       debugConsole.warn('Received unknown message from worker:', data.type)
     }
@@ -127,11 +133,19 @@ export class ReferenceIndexer {
     })
   }
 
-  async search(query: string): Promise<AdvancedReferenceSearchResult> {
-    this.worker.postMessage({ type: 'search', query })
+  async search(query: string, fields?: string[]): Promise<AdvancedReferenceSearchResult> {
+    this.worker.postMessage({ type: 'search', query, fields })
     const { promise, resolve } =
       Promise.withResolvers<AdvancedReferenceSearchResult>()
     this.searchResolve = resolve
+    return promise
+  }
+
+  async list(limit = 30): Promise<AdvancedReferenceSearchResult> {
+    this.worker.postMessage({ type: 'list', limit })
+    const { promise, resolve } =
+      Promise.withResolvers<AdvancedReferenceSearchResult>()
+    this.listResolve = resolve
     return promise
   }
 }

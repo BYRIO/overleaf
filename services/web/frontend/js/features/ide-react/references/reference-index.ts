@@ -5,7 +5,11 @@ export abstract class ReferenceIndex {
   keys: Set<string> = new Set()
 
   abstract updateIndex({ updates, deletes }: Changes): void
-  async search(_query: string): Promise<AdvancedReferenceSearchResult> {
+  async search(_query: string, _fields?: string[]): Promise<AdvancedReferenceSearchResult> {
+    return { hits: [] }
+  }
+
+  async list(limit = 30): Promise<AdvancedReferenceSearchResult> {
     return { hits: [] }
   }
 

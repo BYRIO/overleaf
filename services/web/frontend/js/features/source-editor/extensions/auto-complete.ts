@@ -7,6 +7,7 @@ import {
   Completion,
 } from '@codemirror/autocomplete'
 import { EditorView, keymap } from '@codemirror/view'
+import { getBibkeyArgumentNode } from '../utils/tree-operations/ancestors'
 import {
   Compartment,
   Extension,
@@ -94,7 +95,40 @@ const createAutoComplete = ({ enabled, ...rest }: AutoCompleteOptions) => {
        */
       Prec.high(
         keymap.of([
-          { key: 'Ctrl-Space', run: startCompletion },
+          {
+            key: 'Ctrl-Space',
+            run: (view: EditorView) => {
+              try {
+                const pos = view.state.selection.main.head
+                const node = getBibkeyArgumentNode(view.state, pos)
+                if (node) {
+                  const from = node.from + 1
+                  const to = node.to - 1
+                  const existing = view.state.doc.sliceString(from, to)
+                  const existingKeys = existing
+                    .split(',')
+                    .map(k => k.trim())
+                    .filter(Boolean)
+                  // try to grab the command name (naive approach)
+                  const textBefore = view.state.doc.sliceString(
+                    Math.max(0, node.from - 64),
+                    node.from
+                  )
+                  const cmdMatch = textBefore.match(/\\([a-zA-Z*]+)/)
+                  const commandName = cmdMatch ? cmdMatch[1] : null
+                  window.dispatchEvent(
+                    new CustomEvent('reference:openPicker', {
+                      detail: { from, to, existingKeys, commandName },
+                    })
+                  )
+                  return true
+                }
+              } catch (err) {
+                // ignore and fallback to completion
+              }
+              return startCompletion(view)
+            },
+          },
           { key: 'Alt-Space', run: startCompletion },
         ])
       ),

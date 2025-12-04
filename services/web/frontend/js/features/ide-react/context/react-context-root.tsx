@@ -30,6 +30,7 @@ import { UserFeaturesProvider } from '@/shared/context/user-features-context'
 import { UserSettingsProvider } from '@/shared/context/user-settings-context'
 import { IdeRedesignSwitcherProvider } from './ide-redesign-switcher-context'
 import { CommandRegistryProvider } from './command-registry-context'
+import ReferencePickerController from '@/features/ide-react/references/reference-picker-controller'
 
 export const ReactContextRoot: FC<
   React.PropsWithChildren<{
@@ -103,8 +104,9 @@ export const ReactContextRoot: FC<
                                                             <Providers.OutlineProvider>
                                                               <Providers.IdeRedesignSwitcherProvider>
                                                                 <Providers.CommandRegistryProvider>
-                                                                  {children}
-                                                                </Providers.CommandRegistryProvider>
+                                                                                                  {children}
+                                                                                                  <ReferencePickerController />
+                                                                                                </Providers.CommandRegistryProvider>
                                                               </Providers.IdeRedesignSwitcherProvider>
                                                             </Providers.OutlineProvider>
                                                           </Providers.MetadataProvider>

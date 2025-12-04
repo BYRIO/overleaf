@@ -12,6 +12,8 @@ export type Bib2JsonEntry = {
 export type AdvancedReferenceSearchResult = {
   hits: {
     _source: Bib2JsonEntry
+    score?: number
+    matchedFields?: string[]
   }[]
 }
 

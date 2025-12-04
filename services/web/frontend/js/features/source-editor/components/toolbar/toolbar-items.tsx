@@ -161,6 +161,12 @@ export const ToolbarItems: FC<{
                 command={commands.insertCite}
                 icon="book_5"
               />
+              <ToolbarButton
+                id="toolbar-search-references"
+                label={t('search_references')}
+                command={commands.openReferencePicker}
+                icon="search"
+              />
               <InsertFigureDropdown />
               {writefullInstance ? <TableDropdown /> : <LegacyTableDropdown />}
             </div>
