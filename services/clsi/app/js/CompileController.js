@@ -57,9 +57,10 @@ function compile(req, res, next) {
                 'files out of sync, please retry'
               )
             } else if (
-              error?.code === 'EPIPE' ||
-              error instanceof Errors.TooManyCompileRequestsError
-            ) {
+                      error?.code === 'EPIPE' ||
+                      error instanceof Errors.TooManyCompileRequestsError ||
+                      error instanceof Errors.DockerUnavailableError
+                    ) {
               // docker returns EPIPE when shutting down
               code = 503 // send 503 Unavailable response
               status = 'unavailable'

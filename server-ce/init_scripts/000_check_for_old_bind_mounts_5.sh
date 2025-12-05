@@ -66,12 +66,13 @@ $OLD_ITEMS
     Adapt the docker compose example or get in touch with support.
 
 
-  Server Pro: Please update SANDBOXED_COMPILES_HOST_DIR if needed.
+  Sandboxed compiles are enabled by default and require host directories to be mounted.
+   The server will abort startup if a host bind mount for /var/lib/overleaf is not detected.
+  Please update SANDBOXED_COMPILES_HOST_DIR if needed.
 
 
   Refusing to startup, exiting in 10s.
 
-------------------------------------------------------------------------
 EOF
 
 sleep 10

@@ -53,6 +53,10 @@ build-community:
 	  --tag $(OVERLEAF_BRANCH) \
 	  $(MONOREPO_ROOT)
 
+pre-pull-texlive-images:
+	@echo "Prefetching TexLive images using bin/pre-pull-texlive-images.sh"
+	./bin/pre-pull-texlive-images.sh || true
+
 push:
 	docker push $(OVERLEAF_BASE_TAG)
 	docker push $(OVERLEAF_BASE_BRANCH)

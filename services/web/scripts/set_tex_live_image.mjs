@@ -25,7 +25,7 @@ function printUsage() {
 }
 
 function parseImage(image) {
-  const allowedImageNames = Settings.allowedImageNames.map(x => x.imageName)
+  const allowedImageNames = Settings.allowedImageNames.map(x => x.imageFullName || x.imageName)
   if (!allowedImageNames.includes(image)) {
     console.error(`Unknown image: ${image}`)
     console.error('Please use one of:')
@@ -55,7 +55,7 @@ function parseProjectIds(projectIds) {
 async function updateImage(image, projectIds) {
   const res = await Project.updateMany(
     { _id: { $in: projectIds.map(id => new ObjectId(id)) } },
-    { $set: { imageName: `quay.io/sharelatex/${image}` } }
+    { $set: { imageName: Settings.imageRoot + '/' + image } }
   ).exec()
   console.log(`Found ${res.matchedCount} out of ${projectIds.length} projects`)
   console.log(`Modified ${res.modifiedCount} projects`)

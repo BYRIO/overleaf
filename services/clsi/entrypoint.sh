@@ -2,7 +2,10 @@
 
 # add the node user to the docker group on the host
 DOCKER_GROUP=$(stat -c '%g' /var/run/docker.sock)
-groupadd --non-unique --gid "${DOCKER_GROUP}" dockeronhost
+# Ensure the group exists before attempting to add it (idempotent)
+if ! getent group dockeronhost >/dev/null 2>&1; then
+	groupadd --non-unique --gid "${DOCKER_GROUP}" dockeronhost
+fi
 usermod -aG dockeronhost node
 
 # compatibility: initial volume setup

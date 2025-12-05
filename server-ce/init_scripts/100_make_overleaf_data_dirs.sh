@@ -1,5 +1,21 @@
 #!/bin/bash
 set -e
+DIR=/var/lib/overleaf
+
+# If the bind mount check was not skipped, ensure the host bind mount is present
+if [[ "${OVERLEAF_SKIP_BIND_MOUNT_CHECK}" != "true" ]]; then
+	if command -v mountpoint >/dev/null 2>&1; then
+		if ! mountpoint -q "$DIR"; then
+			echo "FATAL: mount point $DIR not present; aborting (protecting against accidental ephemeral container data)" >&2
+			exit 104
+		fi
+	else
+		if ! awk '{print $5}' /proc/self/mountinfo | grep -Fxq "$DIR"; then
+			echo "FATAL: mount info shows $DIR is not mounted; aborting" >&2
+			exit 104
+		fi
+	fi
+fi
 
 mkdir -p /var/lib/overleaf/data
 chown www-data:www-data /var/lib/overleaf/data

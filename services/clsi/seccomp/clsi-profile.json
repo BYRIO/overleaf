@@ -7,9 +7,9 @@
     ],
     "syscalls": [
         {
-          "name": "getrandom",
-          "action": "SCMP_ACT_ALLOW",
-          "args": []
+            "name": "getrandom",
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
         },
         {
             "name": "access",
@@ -65,8 +65,8 @@
         },
         {
             "name": "clone3",
-            "action": "SCMP_ACT_ERRNO",
-            "errnoRet": 38
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
         },
         {
             "name": "close",
@@ -74,7 +74,42 @@
             "args": []
         },
         {
-            "name": "copy_file_range",
+            "name": "epoll_pwait",
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
+        },
+        {
+            "name": "epoll_create",
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
+        },
+        {
+            "name": "epoll_create1",
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
+        },
+        {
+            "name": "epoll_ctl",
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
+        },
+        {
+            "name": "epoll_wait",
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
+        },
+        {
+            "name": "poll",
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
+        },
+        {
+            "name": "pselect6",
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
+        },
+        {
+            "name": "select",
             "action": "SCMP_ACT_ALLOW",
             "args": []
         },
@@ -844,13 +879,14 @@
             "args": []
         },
         {
-          "name": "gettimeofday",
-          "action": "SCMP_ACT_ALLOW",
-          "args": []
-        }, {
-          "name": "epoll_pwait",
-          "action": "SCMP_ACT_ALLOW",
-          "args": []
+            "name": "gettimeofday",
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
+        },
+        {
+            "name": "epoll_pwait",
+            "action": "SCMP_ACT_ALLOW",
+            "args": []
         }
     ]
 }

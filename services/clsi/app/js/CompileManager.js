@@ -610,6 +610,20 @@ async function _runSynctex(projectId, userId, command, opts) {
           downloadedFromCache,
         }
       } catch (error) {
+        // Detect common cases where synctex binary is not present inside
+        // the configured image and raise a clearer error message.
+        if (
+          error &&
+          (error.code === 'ENOENT' ||
+            (typeof error.message === 'string' &&
+              error.message.toLowerCase().includes('not found')))
+        ) {
+          throw OError.tag(error, 'synctex binary not found in image', {
+            command,
+            projectId,
+            userId,
+          })
+        }
         throw OError.tag(error, 'error running synctex', {
           command,
           projectId,
@@ -721,9 +735,9 @@ function _parseWordcountFromOutput(output) {
 }
 
 function _isImageNameAllowed(imageName) {
-  const ALLOWED_IMAGES =
+  const ALL_IMAGES =
     Settings.clsi && Settings.clsi.docker && Settings.clsi.docker.allowedImages
-  return !ALLOWED_IMAGES || ALLOWED_IMAGES.includes(imageName)
+  return !ALL_IMAGES || ALL_IMAGES.includes(imageName)
 }
 
 function _shouldSkipMetrics(request) {

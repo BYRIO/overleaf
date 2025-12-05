@@ -84,6 +84,7 @@ async function compile(projectId, userId, options = {}) {
     outputUrlPrefix,
     buildId,
     clsiCacheShard,
+    adminHint,
   } = await ClsiManager.promises.sendRequest(projectId, compileAsUser, options)
 
   return {
@@ -97,6 +98,7 @@ async function compile(projectId, userId, options = {}) {
     outputUrlPrefix,
     buildId,
     clsiCacheShard,
+    adminHint,
   }
 }
 
@@ -213,6 +215,7 @@ export default CompileManager = {
     'outputUrlPrefix',
     'buildId',
     'clsiCacheShard',
+    'adminHint',
   ]),
 
   stopCompile: callbackify(stopCompile),

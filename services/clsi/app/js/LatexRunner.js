@@ -52,11 +52,15 @@ function runLatex(projectId, options, callback) {
 
   let command
   try {
-    command = _buildLatexCommand(mainFile, {
-      compiler,
-      stopOnFirstError,
-      flags,
-    })
+    command = _buildLatexCommand(
+      mainFile,
+      {
+        compiler,
+        stopOnFirstError,
+        flags,
+      },
+      image
+    )
   } catch (err) {
     return callback(err)
   }
@@ -151,7 +155,7 @@ function killLatex(projectId, callback) {
   }
 }
 
-function _buildLatexCommand(mainFile, opts = {}) {
+function _buildLatexCommand(mainFile, opts = {}, image) {
   const command = []
 
   if (Settings.clsi?.strace) {
@@ -163,8 +167,21 @@ function _buildLatexCommand(mainFile, opts = {}) {
   }
 
   // Basic command and flags
+  // Resolve latexmk invocation: use an absolute path when the image contains a
+  // TeX Live year (e.g. :TL2024-historic or :2024.1). Using an absolute path
+  // avoids relying on PATH being set correctly inside container images where
+  // shells or user switching may reset it.
+  let latexmkCmd = 'latexmk'
+  if (image) {
+    const match = image.match(/:(?:TL)?(\d{4})(?:\.|-|$)/i)
+    if (match) {
+      const year = match[1]
+      latexmkCmd = `/usr/local/texlive/${year}/bin/x86_64-linux/latexmk`
+    }
+  }
+
   command.push(
-    'latexmk',
+    latexmkCmd,
     '-cd',
     '-jobname=output',
     '-auxdir=$COMPILE_DIR',

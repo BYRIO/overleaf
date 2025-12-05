@@ -97,6 +97,17 @@ function parse(body, callback) {
       default: [],
       type: 'object',
     })
+    // Merge server-configured default tex compiler flags (e.g., -shell-escape)
+    try {
+      const extra =
+        settings?.sandbox?.texCompilerExtraFlags || settings?.texCompilerExtraFlags
+      if (extra && typeof extra === 'string') {
+        const parsed = extra.split(/\s+/).filter(Boolean)
+        if (parsed.length > 0) response.flags = response.flags.concat(parsed)
+      }
+    } catch (err) {
+      // ignore problems parsing extra flags
+    }
     if (settings.allowedCompileGroups) {
       response.compileGroup = _parseAttribute(
         'compileGroup',

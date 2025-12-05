@@ -11,7 +11,12 @@ fi
 if [ -e '/var/run/docker.sock' ]; then
   echo ">> Setting permissions on docker socket"
   DOCKER_GROUP=$(stat -c '%g' /var/run/docker.sock)
-  groupadd --non-unique --gid "${DOCKER_GROUP}" dockeronhost
+  # Only create dockeronhost group if it doesn't already exist. This prevents
+  # noisy errors like "group 'dockeronhost' already exists" during container
+  # restarts. Use getent to check for an existing group name.
+  if ! getent group dockeronhost >/dev/null 2>&1; then
+    groupadd --non-unique --gid "${DOCKER_GROUP}" dockeronhost
+  fi
   usermod -aG dockeronhost www-data
 fi
 

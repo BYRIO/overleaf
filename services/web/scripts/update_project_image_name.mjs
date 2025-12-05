@@ -6,10 +6,10 @@ const newImage = process.argv[3]
 
 function usage() {
   console.log(
-    `Usage: update_project_image_name.js <old_texlive_image> <new_texlive_image>`
+    `Usage: update_project_image_name.js <old_tex_live_docker_image> <new_tex_live_docker_image>`
   )
   console.log(
-    'Environment variable ALL_TEX_LIVE_DOCKER_IMAGES must contain <new_texlive_image>.'
+    'Environment variable ALL_TEX_LIVE_DOCKER_IMAGES must contain <new_tex_live_docker_image>.'
   )
 }
 

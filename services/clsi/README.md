@@ -15,11 +15,11 @@ The provided `Dockerfile` builds a Docker image which has the Docker command lin
 The CLSI can be configured through the following environment variables:
 
 - `ALLOWED_COMPILE_GROUPS` - Space separated list of allowed compile groups
-- `ALLOWED_IMAGES` - Space separated list of allowed Docker TeX Live images
+- `ALL_TEX_LIVE_DOCKER_IMAGES` - Comma-separated list of allowed Docker TeX Live images (inventory and whitelist)
 - `CATCH_ERRORS` - Set to `true` to log uncaught exceptions
 - `COMPILE_GROUP_DOCKER_CONFIGS` - JSON string of Docker configs for compile groups
-- `SANDBOXED_COMPILES` - Set to true to use sibling containers
-- `SANDBOXED_COMPILES_HOST_DIR_COMPILES` - Working directory for LaTeX compiles
+REMOVED: `SANDBOXED_COMPILES` - toggling sandboxing via env var is deprecated; sandboxing enforced in application code.
+ - `SANDBOXED_COMPILES_HOST_DIR_COMPILES` - Working directory for LaTeX compiles
 - `SANDBOXED_COMPILES_HOST_DIR_OUTPUT` - Output directory for LaTeX compiles
 - `COMPILE_SIZE_LIMIT` - Sets the body-parser [limit](https://github.com/expressjs/body-parser#limit)
 - `DOCKER_RUNTIME` -
@@ -28,9 +28,9 @@ The CLSI can be configured through the following environment variables:
 - `LISTEN_ADDRESS` - The address for the RESTful service to listen on. Set to `0.0.0.0` to listen on all network interfaces
 - `PROCESS_LIFE_SPAN_LIMIT_MS` - Process life span limit in milliseconds
 - `SMOKE_TEST` - Whether to run smoke tests
-- `TEXLIVE_IMAGE` - The TeX Live Docker image to use for sibling containers, e.g. `us-east1-docker.pkg.dev/overleaf-ops/ol-docker/texlive-full:2025.1`
+`TEX_LIVE_DOCKER_IMAGE` - The TeX Live Docker image to use for sibling containers, e.g. `texlive/texlive:latest-full`
 - `TEX_LIVE_IMAGE_NAME_OVERRIDE` - The name of the registry for the Docker image e.g. `us-east1-docker.pkg.dev/overleaf-ops/ol-docker`
-- `TEXLIVE_IMAGE_USER` - When using sibling containers, the user to run as in the TeX Live image. Defaults to `tex`
+- `TEX_LIVE_IMAGE_USER` - When using sibling containers, the user to run as in the TeX Live image. Defaults to `www-data`
 - `TEXLIVE_OPENOUT_ANY` - Sets the `openout_any` environment variable for TeX Live (see the `\openout` primitive [documentation](http://tug.org/texinfohtml/web2c.html#tex-invocation))
 
 Further environment variables configure the [metrics module](https://github.com/overleaf/metrics-module)
@@ -61,9 +61,9 @@ Then start the Docker container:
 docker run --rm \
   -p 127.0.0.1:3013:3013 \
   -e LISTEN_ADDRESS=0.0.0.0 \
-  -e SANDBOXED_COMPILES=true \
-  -e TEXLIVE_IMAGE=texlive/texlive \
-  -e TEXLIVE_IMAGE_USER=root \
+  # sandboxing is enforced and enabled by default; no SANDBOXED_COMPILES env required
+    -e TEX_LIVE_DOCKER_IMAGE=texlive/texlive \
+    -e TEX_LIVE_IMAGE_USER=root \
   -e SANDBOXED_COMPILES_HOST_DIR_COMPILES="$PWD/compiles" \
   -v "$PWD/compiles:/overleaf/services/clsi/compiles" \
   -v "$PWD/cache:/overleaf/services/clsi/cache" \
@@ -88,7 +88,7 @@ ls -lnd compiles
 
 If there is a user/group on your host which also happens to have `uid` / `gid` `1000` then that user/group will have ownership of the compiles folder on your host.
 
-LaTeX runs in the sibling containers as the user specified in the `TEXLIVE_IMAGE_USER` environment variable. In the example above this is set to `root`, which has uid `0`. This creates a problem with the above permissions, as the root user does not have permission to write to subfolders of `compiles`.
+LaTeX runs in the sibling containers as the user specified in the `TEX_LIVE_IMAGE_USER` environment variable. In the example above this is set to `root`, which has uid `0`. This creates a problem with the above permissions, as the root user does not have permission to write to subfolders of `compiles`.
 
 A quick fix is to give the `root` group ownership and read write permissions to `compiles`, with `setgid` set so that new subfolders also inherit this ownership:
 

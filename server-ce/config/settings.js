@@ -271,7 +271,18 @@ const settings = {
     defaultLng: process.env.OVERLEAF_SITE_LANGUAGE || 'en',
   },
 
-  currentImageName: process.env.TEX_LIVE_DOCKER_IMAGE,
+  currentImageName: process.env.TEX_LIVE_DOCKER_IMAGE || 'texlive/texlive:latest-full',
+
+  // Optional global server-level Tex compiler flags to be merged into compile
+  // requests handled by the web service. If not provided, in dev and sandbox
+  // environments we default to enabling -shell-escape so features like minted
+  // and pygmentize can function in CI smoke tests.
+  texCompilerExtraFlags: process.env.TEX_COMPILER_EXTRA_FLAGS || '-shell-escape',
+
+  // Support legacy placement of the variable under `sandbox.texCompilerExtraFlags`
+  sandbox: {
+    texCompilerExtraFlags: process.env.TEX_COMPILER_EXTRA_FLAGS || '-shell-escape',
+  },
 
   apis: {
     web: {

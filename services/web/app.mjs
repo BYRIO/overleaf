@@ -4,6 +4,7 @@ import { metricsModuleImportStartTime } from '@overleaf/metrics/initialize.js'
 import Modules from './app/src/infrastructure/Modules.js'
 import metrics from '@overleaf/metrics'
 import Settings from '@overleaf/settings'
+import initialiseSettings from './app/src/infrastructure/SettingsEnhancer.mjs'
 import logger from '@overleaf/logger'
 import PlansLocator from './app/src/Features/Subscription/PlansLocator.mjs'
 import HistoryManager from './app/src/Features/History/HistoryManager.mjs'
@@ -36,9 +37,14 @@ http.globalAgent.maxSockets = Settings.limits.httpGlobalAgentMaxSockets
 https.globalAgent.keepAlive = false
 https.globalAgent.maxSockets = Settings.limits.httpsGlobalAgentMaxSockets
 
+// Initialise derived settings based on sandbox envs (e.g., Docker image lists -> allowedImageNames)
+initialiseSettings()
+
 metrics.memory.monitor(logger)
 metrics.leaked_sockets.monitor(logger)
 metrics.open_sockets.monitor()
+
+// sandbox/dockerrunner enforcement is managed in settings and the code; environment variables cannot disable them.
 
 if (Settings.catchErrors) {
   process.removeAllListeners('uncaughtException')

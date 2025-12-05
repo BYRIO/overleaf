@@ -35,6 +35,7 @@ class QueueLimitReachedError extends OError {}
 class TimedOutError extends OError {}
 class NoXrefTableError extends OError {}
 class TooManyCompileRequestsError extends OError {}
+class DockerUnavailableError extends OError {}
 class InvalidParameter extends OError {}
 
 module.exports = Errors = {
@@ -45,5 +46,6 @@ module.exports = Errors = {
   AlreadyCompilingError,
   NoXrefTableError,
   TooManyCompileRequestsError,
+  DockerUnavailableError,
   InvalidParameter,
 }

@@ -66,6 +66,10 @@ COPY server-ce/init_preshutdown_scripts/ /etc/my_init.pre_shutdown.d/
 # -----------------------
 COPY server-ce/config/settings.js /etc/overleaf/settings.js
 
+# Copy health check scripts
+COPY server-ce/health/check-texlive-images.sh /etc/overleaf/health/check-texlive-images.sh
+RUN chmod +x /etc/overleaf/health/check-texlive-images.sh
+
 # Copy history-v1 files
 # -----------------------
 COPY server-ce/config/production.json /overleaf/services/history-v1/config/production.json
@@ -116,3 +120,16 @@ ENV LOG_LEVEL="info"
 EXPOSE 80
 
 ENTRYPOINT ["/sbin/my_init"]
+
+# TexLive image checks & pull defaults in production
+# These variables cause the server to attempt to pull configured TexLive images at startup
+ENV AUTO_PULL_TEXLIVE_IMAGE=true
+ENV FAIL_ON_MISSING_TEXLIVE_IMAGE=true
+ENV FAIL_ON_IMAGE_PULL_FAILURE=true
+ENV AUTO_BACKFILL_TEXLIVE_IMAGE=true
+ENV AUTO_FALLBACK_TEXLIVE_IMAGE=true
+ENV TEX_LIVE_DOCKER_IMAGE="texlive/texlive:latest-full"
+ENV ALL_TEX_LIVE_DOCKER_IMAGES="texlive/texlive:latest-full"
+
+# Docker HEALTHCHECK to expose whether required TexLive images are available
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=5 CMD /etc/overleaf/health/check-texlive-images.sh || exit 1

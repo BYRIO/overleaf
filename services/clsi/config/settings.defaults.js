@@ -66,6 +66,8 @@ module.exports = {
   parallelFileDownloads: process.env.FILESTORE_PARALLEL_FILE_DOWNLOADS || 1,
   filestoreDomainOveride: process.env.FILESTORE_DOMAIN_OVERRIDE,
   texliveImageNameOveride: process.env.TEX_LIVE_IMAGE_NAME_OVERRIDE,
+  // Optional global tex compiler flags for CLSI (applies to every compile request if set).
+  texCompilerExtraFlags: process.env.TEX_COMPILER_EXTRA_FLAGS || '-shell-escape',
   texliveOpenoutAny: process.env.TEXLIVE_OPENOUT_ANY,
   texliveMaxPrintLine: process.env.TEXLIVE_MAX_PRINT_LINE,
   enablePdfCaching: process.env.ENABLE_PDF_CACHING === 'true',
@@ -95,26 +97,41 @@ if (process.env.ALLOWED_COMPILE_GROUPS) {
   }
 }
 
-if ((process.env.DOCKER_RUNNER || process.env.SANDBOXED_COMPILES) === 'true') {
-  module.exports.clsi = {
-    dockerRunner: true,
-    docker: {
-      runtime: process.env.DOCKER_RUNTIME,
-      image:
-        process.env.TEXLIVE_IMAGE ||
-        process.env.TEX_LIVE_DOCKER_IMAGE ||
-        'quay.io/sharelatex/texlive-full:2017.1',
-      env: {
-        HOME: '/tmp',
-        CLSI: 1,
-      },
-      socketPath: '/var/run/docker.sock',
-      user: process.env.TEXLIVE_IMAGE_USER || 'tex',
+/* Enforce Docker runner and sandboxed compiles by config regardless of env vars.
+   We intentionally ignore environment variables that try to disable these settings
+   and warn if a contradictory env value is detected. */
+
+// NOTE: DOCKER_RUNNER and SANDBOXED_COMPILES are enforced in code and cannot be disabled by environment variables.
+
+// Enforced settings
+module.exports.clsi = {
+  dockerRunner: true,
+  docker: {
+    runtime: process.env.DOCKER_RUNTIME,
+    image:
+      process.env.TEX_LIVE_DOCKER_IMAGE ||
+      'texlive/texlive:latest-full',
+    env: {
+      HOME: '/tmp',
+      CLSI: 1,
     },
-    optimiseInDocker: true,
-    expireProjectAfterIdleMs: 24 * 60 * 60 * 1000,
-    checkProjectsIntervalMs: 10 * 60 * 1000,
-  }
+    socketPath: process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock',
+    user: process.env.TEX_LIVE_IMAGE_USER || 'www-data',
+  },
+  optimiseInDocker: true,
+  expireProjectAfterIdleMs: 24 * 60 * 60 * 1000,
+  checkProjectsIntervalMs: 10 * 60 * 1000,
+  // Validate host sandboxed compiles path from Docker daemon perspective when the
+  // configured host path is not visible inside this container. This is useful in
+  // development setups where host paths are mounted differently; set to 'false'
+  // to disable.
+  validateSandboxedCompilesHostDirViaDocker:
+    (process.env.SANDBOXED_COMPILES_VALIDATE_HOST_DIR_VIA_DOCKER || 'true') !== 'false',
+  // Optional image used to validate host directory existence when Docker-based
+  // validation is enabled. Defaults to a small busybox image.
+  sandboxedCompilesDirValidationImage:
+    process.env.SANDBOXED_COMPILES_DIR_VALIDATION_IMAGE || 'busybox:1',
+}
 
   try {
     // Override individual docker settings using path-based keys, e.g.:
@@ -165,14 +182,18 @@ if ((process.env.DOCKER_RUNNER || process.env.SANDBOXED_COMPILES) === 'true') {
     }
   }
 
-  if (process.env.ALLOWED_IMAGES) {
-    try {
+  try {
+    if (process.env.ALL_TEX_LIVE_DOCKER_IMAGES) {
+      // Use ALL_TEX_LIVE_DOCKER_IMAGES as the single source-of-truth for allowed images
       module.exports.clsi.docker.allowedImages =
-        process.env.ALLOWED_IMAGES.split(' ')
-    } catch (error) {
-      console.error(error, 'could not apply allowed images setting')
-      process.exit(1)
+        process.env.ALL_TEX_LIVE_DOCKER_IMAGES.split(',').map(i => i.trim()).filter(Boolean)
+    } else {
+      // Default to allowing the configured Tex Live image if no inventory list provided
+      module.exports.clsi.docker.allowedImages = [module.exports.clsi.docker.image]
     }
+  } catch (error) {
+    console.error(error, 'could not populate allowed images from ALL_TEX_LIVE_DOCKER_IMAGES')
+    process.exit(1)
   }
 
   module.exports.path.synctexBaseDir = () => '/compile'
@@ -180,20 +201,25 @@ if ((process.env.DOCKER_RUNNER || process.env.SANDBOXED_COMPILES) === 'true') {
   module.exports.path.sandboxedCompilesHostDirCompiles =
     process.env.SANDBOXED_COMPILES_HOST_DIR_COMPILES ||
     process.env.SANDBOXED_COMPILES_HOST_DIR ||
-    process.env.COMPILES_HOST_DIR
+    process.env.COMPILES_HOST_DIR ||
+    (process.env.OVERLEAF_HOST_DATA_DIR
+      ? `${process.env.OVERLEAF_HOST_DATA_DIR}/data/compiles`
+      : undefined)
   if (!module.exports.path.sandboxedCompilesHostDirCompiles) {
     throw new Error(
-      'SANDBOXED_COMPILES enabled, but SANDBOXED_COMPILES_HOST_DIR_COMPILES not set'
+      'Sandboxed compiles require SANDBOXED_COMPILES_HOST_DIR_COMPILES to be set'
     )
   }
 
   module.exports.path.sandboxedCompilesHostDirOutput =
     process.env.SANDBOXED_COMPILES_HOST_DIR_OUTPUT ||
-    process.env.OUTPUT_HOST_DIR
+    process.env.OUTPUT_HOST_DIR ||
+    (process.env.OVERLEAF_HOST_DATA_DIR
+      ? `${process.env.OVERLEAF_HOST_DATA_DIR}/data/output`
+      : undefined)
   if (!module.exports.path.sandboxedCompilesHostDirOutput) {
     // TODO(das7pad): Enforce in a future major version of Server Pro.
     // throw new Error(
-    //   'SANDBOXED_COMPILES enabled, but SANDBOXED_COMPILES_HOST_DIR_OUTPUT not set'
+    //   'Sandboxed compiles host dir output not set: SANDBOXED_COMPILES_HOST_DIR_OUTPUT not set'
     // )
   }
-}

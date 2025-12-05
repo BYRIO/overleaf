@@ -390,6 +390,20 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
         Settings.overleaf != null || Settings.templates?.user_id != null,
       cioWriteKey: Settings.analytics?.cio?.writeKey,
       cioSiteId: Settings.analytics?.cio?.siteId,
+
+        // Sandbox/CLSI defaults for UI and client behavior
+        sandboxEnabled: Settings.sandbox?.enabled === true,
+        sandboxDefaultTexLiveImage: Settings.sandbox?.texLiveDockerImage,
+        sandboxAllTexLiveDockerImages:
+          (Settings.sandbox?.allTexLiveDockerImages || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean),
+        sandboxAllTexLiveDockerImageNames:
+          (Settings.sandbox?.allTexLiveDockerImageNames || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean),
     }
     next()
   })

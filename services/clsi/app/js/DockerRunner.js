@@ -1,6 +1,7 @@
 const { promisify } = require('node:util')
 const Settings = require('@overleaf/settings')
 const logger = require('@overleaf/logger')
+const Errors = require('./Errors')
 const Docker = require('dockerode')
 const dockerode = new Docker()
 const crypto = require('node:crypto')
@@ -110,8 +111,24 @@ const DockerRunner = {
               callback
             )
           })
+        } else if (error) {
+          // Wrap docker-related errors to indicate the Docker runtime is unavailable
+          const msg = (error && error.message) || ''
+          if (
+            msg.includes('connect') ||
+            msg.includes('socket') ||
+            msg.includes('No such file or directory') ||
+            error.code === 'ENOENT'
+          ) {
+            const wrapped = new Errors.DockerUnavailableError(
+              'docker runtime unavailable'
+            )
+            wrapped.original = error
+            return callback(wrapped)
+          }
+          return callback(error, output)
         } else {
-          callback(error, output)
+          callback(null, output)
         }
       }
     )
@@ -235,11 +252,22 @@ const DockerRunner = {
       }
     }
     // set the path based on the image year
-    const match = image.match(/:([0-9]+)\.[0-9]+/)
-    // the rolling build does not follow our <year>.<version>.<patch> convention
-    const year = match ? match[1] : 'rolling'
+    // Accept tags such as :2024.1, :TL2024-historic, :2024, :2023-full
+    let year = null
+    let match = image.match(/:(?:TL)?(\d{4})(?:\.|-|$)/i)
+    if (match) {
+      year = match[1]
+    }
 
-    env.PATH = `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/texlive/${year}/bin/x86_64-linux/`
+    // If we found a year, prepend the standard TEXLIVE binary directory; otherwise
+    // leave PATH as standard so images with different layout (e.g., latest-full)
+    // can use their own PATHs.
+    if (year) {
+      env.PATH = `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/texlive/${year}/bin/x86_64-linux/`
+    } else {
+      env.PATH = `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`
+    }
+    logger.debug({ image, year, path: env.PATH }, 'configured PATH for docker runner')
     const options = {
       Cmd: command,
       Image: image,
@@ -596,7 +624,18 @@ const DockerRunner = {
   },
 
   canRunSyncTeXInOutputDir() {
-    return Boolean(Settings.path.sandboxedCompilesHostDirOutput)
+    try {
+      const dir = Settings.path.sandboxedCompilesHostDirOutput
+      if (!dir) return false
+      // Verify host dir exists and is a directory
+      const fs = require('fs')
+      const stat = fs.statSync(dir)
+      return stat.isDirectory()
+    } catch (err) {
+      // If anything goes wrong (no dir set or stat fails), return false
+      logger.debug({ err }, 'could not use output dir for syncTeX')
+      return false
+    }
   },
 }
 

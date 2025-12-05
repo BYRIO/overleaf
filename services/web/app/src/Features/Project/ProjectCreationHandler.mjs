@@ -176,11 +176,15 @@ async function _createBlankProject(
   // have it set to `true` since SP 4.0
   project.overleaf.history.display = true
 
-  if (Settings.currentImageName) {
-    // avoid clobbering any imageName already set in attributes (e.g. importedImageName)
-    if (!project.imageName) {
-      project.imageName = Settings.currentImageName
-    }
+  // Assign a default image name to projects during creation so that
+  // sandboxed compiles 'just work' even when no server env var is set.
+  // Prefer Settings.currentImageName (server-level override) and fallback to
+  // the web 'sandbox' default (`Settings.sandbox.texLiveDockerImage`) if
+  // present.
+  const defaultImageName =
+    Settings.currentImageName || Settings.sandbox?.texLiveDockerImage
+  if (defaultImageName && !project.imageName) {
+    project.imageName = defaultImageName
   }
   project.rootFolder[0] = rootFolder
   const user = await User.findById(ownerId, {

@@ -1,5 +1,6 @@
 // @ts-check
 import minimist from 'minimist'
+import Settings from '@overleaf/settings'
 import { batchedUpdateWithResultHandling } from '@overleaf/mongo-utils/batchedUpdate.js'
 import { db } from '../app/src/infrastructure/mongodb.js'
 
@@ -21,6 +22,8 @@ function usage() {
 
 if (!imageName && process.env.TEX_LIVE_DOCKER_IMAGE) {
   imageName = process.env.TEX_LIVE_DOCKER_IMAGE
+} else if (!imageName && Settings && Settings.sandbox && Settings.sandbox.texLiveDockerImage) {
+  imageName = Settings.sandbox.texLiveDockerImage
 }
 
 if (!imageName) {
@@ -28,15 +31,15 @@ if (!imageName) {
   process.exit(1)
 }
 
-if (!process.env.ALL_TEX_LIVE_DOCKER_IMAGES) {
+const allTexLiveEnv = process.env.ALL_TEX_LIVE_DOCKER_IMAGES || (Settings && Settings.sandbox && Settings.sandbox.allTexLiveDockerImages)
+if (!allTexLiveEnv) {
   console.error(
-    'Error: environment variable ALL_TEX_LIVE_DOCKER_IMAGES is not defined.'
+    'Error: environment variable ALL_TEX_LIVE_DOCKER_IMAGES is not defined (nor is it configured in Settings.sandbox.allTexLiveDockerImages).'
   )
   usage()
   process.exit(1)
 }
-
-if (!process.env.ALL_TEX_LIVE_DOCKER_IMAGES.split(',').includes(imageName)) {
+if (!allTexLiveEnv.split(',').includes(imageName)) {
   console.error(
     `Error: ALL_TEX_LIVE_DOCKER_IMAGES doesn't contain ${imageName}`
   )

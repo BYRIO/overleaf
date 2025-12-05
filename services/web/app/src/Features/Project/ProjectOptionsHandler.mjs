@@ -26,15 +26,30 @@ const ProjectOptionsHandler = {
     if (!imageName || !Array.isArray(settings.allowedImageNames)) {
       return
     }
-    imageName = imageName.toLowerCase()
-    const isAllowed = settings.allowedImageNames.find(
-      allowed => imageName === allowed.imageName
-    )
+    const requestedName = imageName.toLowerCase()
+    // log attempt to set imageName
+    try {
+      logger.debug({ projectId, requestedName }, 'attempting to set project imageName')
+    } catch (err) {
+      // don't throw on logging failures
+    }
+    const isAllowed = settings.allowedImageNames.find(allowed => {
+      const basName = (allowed.imageName || '').toLowerCase()
+      const fullName = (allowed.imageFullName || '').toLowerCase()
+      return requestedName === basName || requestedName === fullName
+    })
     if (!isAllowed) {
       throw new Error(`invalid imageName: ${imageName}`)
     }
+    try {
+      logger.info({ projectId, requestedName, fullImageName: isAllowed.imageFullName }, 'imageName is allowed; updating project')
+    } catch (err) {
+      // ignore logger errors
+    }
+    // Use the canonical full image name when storing in the DB, if available.
+    const fullImageName = isAllowed.imageFullName || (settings.imageRoot ? `${settings.imageRoot}/${imageName}` : imageName)
     const conditions = { _id: projectId }
-    const update = { imageName: settings.imageRoot + '/' + imageName }
+    const update = { imageName: fullImageName }
     return Project.updateOne(conditions, update, {})
   },
 

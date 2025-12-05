@@ -258,6 +258,11 @@ async function _sendBuiltRequest(projectId, userId, req, options) {
   )
   collectMetricsOnBlgFiles(outputFiles)
   const compile = response?.compile || {}
+  let adminHint
+  if (compile.status === 'unavailable') {
+    adminHint =
+      'Compiler backend unavailable. Check the CLSI service status, docker socket, and sandboxed compiles host configuration (SANDBOXED_COMPILES_HOST_DIR* variables).'
+  }
   return {
     status: compile.status,
     outputFiles,
@@ -267,6 +272,7 @@ async function _sendBuiltRequest(projectId, userId, req, options) {
     timings: compile.timings,
     outputUrlPrefix: compile.outputUrlPrefix,
     clsiCacheShard: compile.clsiCacheShard,
+    adminHint,
   }
 }
 
@@ -816,7 +822,7 @@ async function _getContentFromMongo(projectId) {
 
 function _finaliseRequest(projectId, options, project, docs, files) {
   const resources = []
-  let flags
+  let flags = []
   let rootResourcePath = null
   let rootResourcePathOverride = null
   let hasMainFile = false
@@ -881,8 +887,23 @@ function _finaliseRequest(projectId, options, project, docs, files) {
     })
   }
 
+  // Inject extra flags from server configuration (e.g., -shell-escape)
+  // `Settings.sandbox.texCompilerExtraFlags` is populated from env TEX_COMPILER_EXTRA_FLAGS
+  // It can be a space-separated list of flags and will be applied to every compile
+  // initiated by this server. Merge them first so that file-line-error can be appended.
+  try {
+    const extra =
+      Settings?.sandbox?.texCompilerExtraFlags || Settings?.texCompilerExtraFlags || ''
+    if (extra && typeof extra === 'string') {
+      const parsed = extra.split(/\s+/).filter(Boolean)
+      if (parsed.length > 0) flags = flags.concat(parsed)
+    }
+  } catch (err) {
+    // ignore errors and continue
+  }
+
   if (options.fileLineErrors) {
-    flags = ['-file-line-error']
+    flags.push('-file-line-error')
   }
 
   return {
@@ -892,7 +913,24 @@ function _finaliseRequest(projectId, options, project, docs, files) {
         editorId: options.editorId,
         compiler: project.compiler,
         timeout: options.timeout,
-        imageName: project.imageName,
+        // Normalize the project image name to a full repository string
+        // If project.imageName is a short form (basename), resolve it using Settings.allowedImageNames
+        imageName: (() => {
+          let img = project.imageName
+          if (!img && Settings.currentImageName) {
+            // fallback to current image
+            return Settings.currentImageName
+          }
+          if (!img) return img
+          const requested = img.toLowerCase()
+          const allowed = (Settings.allowedImageNames || []).find(a => {
+            const base = (a.imageName || '').toLowerCase()
+            const full = (a.imageFullName || '').toLowerCase()
+            return requested === base || requested === full
+          })
+          if (allowed && allowed.imageFullName) return allowed.imageFullName
+          return img
+        })(),
         draft: Boolean(options.draft),
         stopOnFirstError: Boolean(options.stopOnFirstError),
         check: options.check,

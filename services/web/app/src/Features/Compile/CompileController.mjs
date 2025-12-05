@@ -202,6 +202,7 @@ const _CompileController = {
       outputUrlPrefix,
       buildId,
       clsiCacheShard,
+      adminHint,
     } = await CompileManager.promises
       .compile(projectId, userId, options)
       .catch(error => {
@@ -210,6 +211,9 @@ const _CompileController = {
       })
 
     Metrics.inc('compile-status', 1, { status })
+    if (status === 'unavailable') {
+      logger.warn({ projectId, adminHint }, 'compile backend unavailable')
+    }
     if (pdfDownloadDomain && outputUrlPrefix) {
       pdfDownloadDomain += outputUrlPrefix
     }
@@ -250,7 +254,7 @@ const _CompileController = {
       ? getOutputFilesArchiveSpecification(projectId, userId, buildId)
       : null
 
-    res.json({
+    const baseRes = {
       status,
       outputFiles,
       outputFilesArchive,
@@ -263,7 +267,11 @@ const _CompileController = {
       outputUrlPrefix,
       pdfDownloadDomain,
       pdfCachingMinChunkSize,
-    })
+    }
+    if (status === 'unavailable' && adminHint) {
+      baseRes.adminHint = adminHint
+    }
+    res.json(baseRes)
   },
 
   async stopCompile(req, res) {

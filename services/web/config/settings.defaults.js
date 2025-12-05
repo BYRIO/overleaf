@@ -302,6 +302,19 @@ module.exports = {
     recurly: {},
   },
 
+  // Sandbox settings are enforced by configuration and not user-controllable by env.
+  sandbox: {
+    enabled: true,
+    dockerRunner: true,
+    siblingContainers: true,
+    dockerSocketPath: process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock',
+    texLiveDockerImage: process.env.TEX_LIVE_DOCKER_IMAGE || 'texlive/texlive:latest-full',
+    allTexLiveDockerImages: process.env.ALL_TEX_LIVE_DOCKER_IMAGES || 'texlive/texlive:latest-full',
+    allTexLiveDockerImageNames: process.env.ALL_TEX_LIVE_DOCKER_IMAGE_NAMES || 'TeXLive Latest',
+    texCompilerExtraFlags: process.env.TEX_COMPILER_EXTRA_FLAGS || '',
+    texliveImageUser: process.env.TEX_LIVE_IMAGE_USER || 'www-data',
+  },
+
   // Defines which features are allowed in the
   // Permissions-Policy HTTP header
   httpPermissions: httpPermissionsPolicy,
@@ -1047,6 +1060,7 @@ module.exports = {
     'history-v1',
     'launchpad',
     'server-ce-scripts',
+    'sandbox',
     'user-activate',
     'admin-project-list',
     'track-changes',

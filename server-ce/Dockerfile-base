@@ -22,8 +22,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 &&  rm -f /etc/apt/apt.conf.d/docker-clean && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
 &&  apt-get update \
 &&  apt-get install -y \
-      unattended-upgrades \
+    unattended-upgrades \
       build-essential wget net-tools unzip time imagemagick optipng strace nginx git python3 python-is-python3 zlib1g-dev libpcre3-dev gettext-base libwww-perl ca-certificates curl gnupg \
+    docker.io \
       qpdf \
 # upgrade base-image, batch all the upgrades together, rather than installing them on-by-one (which is slow!)
 &&  unattended-upgrade --verbose --no-minimal-upgrade-steps \
@@ -39,45 +40,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       /etc/nginx/nginx.conf \
       /etc/nginx/sites-enabled/default
 
-# Install TexLive
-# ---------------
-# CTAN mirrors occasionally fail, in that case install TexLive using a
-# different server, for example https://ctan.crest.fr
-#
-# # docker build \
-#     --build-arg TEXLIVE_MIRROR=https://ctan.crest.fr/tex-archive/systems/texlive/tlnet \
-#     -f Dockerfile-base -t sharelatex/sharelatex-base .
-ARG TEXLIVE_MIRROR=https://mirror.ox.ac.uk/sites/ctan.org/systems/texlive/tlnet
-
-RUN mkdir /install-tl-unx \
-&&  wget --quiet https://tug.org/texlive/files/texlive.asc \
-&&  gpg --import texlive.asc \
-&&  rm texlive.asc \
-&&  wget --quiet ${TEXLIVE_MIRROR}/install-tl-unx.tar.gz \
-&&  wget --quiet ${TEXLIVE_MIRROR}/install-tl-unx.tar.gz.sha512 \
-&&  wget --quiet ${TEXLIVE_MIRROR}/install-tl-unx.tar.gz.sha512.asc \
-&&  gpg --verify install-tl-unx.tar.gz.sha512.asc \
-&&  sha512sum -c install-tl-unx.tar.gz.sha512 \
-&&  tar -xz -C /install-tl-unx --strip-components=1 -f install-tl-unx.tar.gz \
-&&  rm install-tl-unx.tar.gz* \
-&&  echo "tlpdbopt_autobackup 0" >> /install-tl-unx/texlive.profile \
-&&  echo "tlpdbopt_install_docfiles 0" >> /install-tl-unx/texlive.profile \
-&&  echo "tlpdbopt_install_srcfiles 0" >> /install-tl-unx/texlive.profile \
-&&  echo "selected_scheme scheme-basic" >> /install-tl-unx/texlive.profile \
-    \
-&&  /install-tl-unx/install-tl \
-      -profile /install-tl-unx/texlive.profile \
-      -repository ${TEXLIVE_MIRROR} \
-    \
-&&  $(find /usr/local/texlive -name tlmgr) path add \
-&&  tlmgr install --repository ${TEXLIVE_MIRROR} \
-      latexmk \
-      texcount \
-      synctex \
-      etoolbox \
-      xetex \
-&&  tlmgr path add \
-&&  rm -rf /install-tl-unx
+## TexLive is no longer included in the base image.
+## The CLSI runs TexLive compiles in sibling containers (Docker runner),
+## so keeping TexLive in the base image causes unexpected fallback behaviors.
+## To ensure we use the Docker TexLive images defined via ALL_TEX_LIVE_DOCKER_IMAGES,
+## we remove the system TexLive installation from this base image.
 
 
 # Set up overleaf user and home directory

@@ -14,12 +14,18 @@ services:
             - 80:80
         stop_grace_period: 60s
         volumes:
+            # MANDATORY: persistent host data directory for Overleaf. Must be present
+            # and mounted into the container or startup will abort.
             - ~/sharelatex_data:/var/lib/overleaf
             ########################################################################
             ####  Server Pro: Uncomment the following line to mount the docker  ####
             ####             socket, required for Sibling Containers to work    ####
+            ####  NOTE: The production server image enables AUTO_PULL_TEXLIVE_IMAGE  ####
+            ####  by default and will attempt to pull configured TexLive images    ####
+            ####  at startup. To allow this operation, mount the Docker socket     ####
+            ####  into the container (or pre-pull these images via the host).   ####
             ########################################################################
-            # - /var/run/docker.sock:/var/run/docker.sock
+            - /var/run/docker.sock:/var/run/docker.sock
         environment:
 
             OVERLEAF_APP_NAME: Overleaf Community Edition
@@ -77,14 +83,34 @@ services:
             ## so the following environment variables must be commented out to avoid compile issues.
             ##
             ## Sandboxed Compiles: https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/server-pro-only-configuration/sandboxed-compiles
-            SANDBOXED_COMPILES: 'true'
+                ############################
+                ## Optional: Sandboxed Compiles
+                ############################
+
+                ## The Community Edition is supplied for environments where all users are trusted. If you want additional isolation
+                ## and run per-project compiles inside sibling containers, you can enable Sandboxed Compiles here. This requires
+                ## bind-mounting the Docker socket and host directories and comes with additional security considerations.
+                ## See: https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/server-pro-only-configuration/sandboxed-compiles
+                ## To enable sandboxed compiles in the CE or Pro editions, set the following environment variables (and mount the
+                ## docker socket and host directories as shown below):
+                    # SANDBOXED_COMPILES and sibling container mode are enforced in application code.
+                DOCKER_SOCKET_PATH: '/var/run/docker.sock'
+                # Note: SANDBOXED_COMPILES and sibling container mode are enforced in application code; DO NOT set these envs.
+                ALL_TEX_LIVE_DOCKER_IMAGES: 'texlive/texlive:latest-full'
+                ALL_TEX_LIVE_DOCKER_IMAGE_NAMES: 'TeXLive Latest'
+                TEX_LIVE_DOCKER_IMAGE: 'texlive/texlive:latest-full'
+                    # ENFORCE_SANDBOXED_COMPILES not required; sandboxing is enforced by the server in code.
+                TEX_LIVE_IMAGE_USER: 'www-data'
+                OVERLEAF_HOST_DATA_DIR: '/home/user/sharelatex_data'
+                # ENFORCE_SANDBOXED_COMPILES is no longer required; enforcement is in application code.
+                SANDBOXED_COMPILES_HOST_DIR_COMPILES: '/home/user/sharelatex_data/data/compiles'
+                SANDBOXED_COMPILES_HOST_DIR_OUTPUT: '/home/user/sharelatex_data/data/output'
             ### Bind-mount source for /var/lib/overleaf/data/compiles inside the container.
             SANDBOXED_COMPILES_HOST_DIR_COMPILES: '/home/user/sharelatex_data/data/compiles'
             ### Bind-mount source for /var/lib/overleaf/data/output inside the container.
-            SANDBOXED_COMPILES_HOST_DIR_OUTPUT: '/home/user/sharelatex_data/data/output'
+                # sibling container mode & docker runner are enforced in code and cannot be disabled via env vars.
             ### Backwards compatibility (before Server Pro 5.5)
-            DOCKER_RUNNER: 'true'
-            SANDBOXED_COMPILES_SIBLING_CONTAINERS: 'true'
+            # DOCKER_RUNNER and SANDBOXED_COMPILES_SIBLING_CONTAINERS are enforced by the server and not set via env variables.
 
             ## Works with test LDAP server shown at bottom of docker compose
             # OVERLEAF_LDAP_URL: 'ldap://ldap:389'
