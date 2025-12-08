@@ -26,6 +26,25 @@ async function register(req, res, next) {
   })
 }
 
+async function registerPublic(req, res, next) {
+  const { email } = req.body
+  const validEdu = /bupt\.edu\.cn\s*$/.test(email || '')
+  const validBupt = /bupt\.cn\s*$/.test(email || '')
+  if (email == null || email === '' || (!validEdu && !validBupt)) {
+    return res.sendStatus(422)
+  }
+  try {
+    const { user } =
+      await UserRegistrationHandler.promises.registerNewUserAndSendActivationEmail(
+        email
+      )
+    const setNewPasswordUrl = 'Please check your inbox.'
+    res.json({ email: user.email, setNewPasswordUrl })
+  } catch (error) {
+    return next(error)
+  }
+}
+
 async function activateAccountPage(req, res, next) {
   // An 'activation' is actually just a password reset on an account that
   // was set with a random password originally.
@@ -65,5 +84,6 @@ async function activateAccountPage(req, res, next) {
 export default {
   registerNewUser,
   register: expressify(register),
+  registerPublic: expressify(registerPublic),
   activateAccountPage: expressify(activateAccountPage),
 }

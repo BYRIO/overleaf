@@ -26,5 +26,9 @@ export default {
       AuthorizationMiddleware.ensureUserIsSiteAdmin,
       UserActivateController.register
     )
+    webRouter.post(
+      '/register',
+      UserActivateController.registerPublic
+    )
   },
 }
