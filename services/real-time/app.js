@@ -49,6 +49,7 @@ const server = require('node:http').createServer(app)
 server.keepAliveTimeout = Settings.keepAliveTimeoutMs
 const io = require('socket.io').listen(server, {
   logger: socketIoLogger,
+  'heartbeat interval': 10  // BYRIO-CHANGES: it's designed for tencent CDN websocket heartbeat
 })
 
 // Bind to sessions
