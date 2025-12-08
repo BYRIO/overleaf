@@ -11,8 +11,13 @@ if [[ "$BRANCH_NAME" == "main" ]]; then
   cd sentry_upload/public
 
   sentry-cli releases new "$SENTRY_RELEASE"
-  sentry-cli releases set-commits --auto "$SENTRY_RELEASE"
+<<<<<<< HEAD
+  sentry-cli releases set-commits --auto --ignore-missing "$SENTRY_RELEASE"
   sentry-cli sourcemaps upload --release="$SENTRY_RELEASE" .
+=======
+  sentry-cli releases files "$SENTRY_RELEASE" upload-sourcemaps ${OPTS} .
+  sentry-cli releases set-commits --auto --ignore-missing "$SENTRY_RELEASE"
+>>>>>>> 875f56a7a0 ([release] combine BYRIO changes to 1 commit for sync upstream easier)
   sentry-cli releases finalize "$SENTRY_RELEASE"
 
   cd ../..
