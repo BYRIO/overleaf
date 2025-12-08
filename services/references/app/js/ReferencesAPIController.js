@@ -11,22 +11,36 @@ const bibParse = require('./BibParser')
 // res: { keys: string[]}
 module.exports = {
   index(req, res) {
-    const { docUrls, fullIndex } = req.body;
-    async.parallel(docUrls.map(docUrl => function(cb){request.get(docUrl, cb)}), function(err, argsList){
-      let keys = [];
-      argsList.forEach(([res, body]) => {
-        if(body){
-          try{
-            const result = bibParse(body);
-            const resultKeys = Object.keys(result);
-            keys.push(...resultKeys);
-          } catch(error) {
-            logger.error({error}, "skip the file.")
-          }
+    const { docUrls } = req.body || {}
+    if (!Array.isArray(docUrls) || docUrls.length === 0) {
+      return res.status(422).send({ error: 'docUrls required' })
+    }
+
+    async.parallel(
+      docUrls.map(docUrl => cb => {
+        request.get(docUrl, (err, response, body) => {
+          // normalize callback shape for async.parallel
+          cb(err, { response, body })
+        })
+      }),
+      function (err, results) {
+        if (err) {
+          logger.error({ err }, 'failed to fetch bib files')
+          return res.send({ keys: [] })
         }
-      });
-      logger.info({ keys }, "all keys");
-      res.send({ keys })
-    })
+        const keys = []
+        results.forEach(({ body }) => {
+          if (!body) return
+          try {
+            const parsed = bibParse(body)
+            keys.push(...Object.keys(parsed))
+          } catch (error) {
+            logger.error({ error }, 'failed to parse bib file, skipping')
+          }
+        })
+        logger.info({ keys }, 'all keys')
+        res.send({ keys })
+      }
+    )
   }
 }
