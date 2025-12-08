@@ -1,8 +1,8 @@
 diff --git a/node_modules/node-fetch/lib/index.js b/node_modules/node-fetch/lib/index.js
-index 567ff5d..8eb45f7 100644
+index 0000000..0000000
 --- a/node_modules/node-fetch/lib/index.js
 +++ b/node_modules/node-fetch/lib/index.js
-@@ -545,8 +545,8 @@ function clone(instance) {
+@@ -545,8 +545,8 @@
  		// tee instance body
  		p1 = new PassThrough();
  		p2 = new PassThrough();
@@ -13,7 +13,7 @@ index 567ff5d..8eb45f7 100644
  		// set instance body to teed body and return the other teed body
  		instance[INTERNALS].body = p1;
  		body = p2;
-@@ -648,14 +648,14 @@ function writeToStream(dest, instance) {
+@@ -648,14 +648,14 @@
  		// body is null
  		dest.end();
  	} else if (isBlob(body)) {
@@ -30,7 +30,7 @@ index 567ff5d..8eb45f7 100644
  	}
  }
  
-@@ -1638,7 +1638,7 @@ function fetch(url, opts) {
+@@ -1594,7 +1594,7 @@
  			res.once('end', function () {
  				if (signal) signal.removeEventListener('abort', abortAndFinalize);
  			});
@@ -39,7 +39,7 @@ index 567ff5d..8eb45f7 100644
  
  			const response_options = {
  				url: request.url,
-@@ -1679,7 +1679,7 @@ function fetch(url, opts) {
+@@ -1635,7 +1635,7 @@
  
  			// for gzip
  			if (codings == 'gzip' || codings == 'x-gzip') {
@@ -48,7 +48,7 @@ index 567ff5d..8eb45f7 100644
  				response = new Response(body, response_options);
  				resolve(response);
  				return;
-@@ -1689,13 +1689,13 @@ function fetch(url, opts) {
+@@ -1645,11 +1645,11 @@
  			if (codings == 'deflate' || codings == 'x-deflate') {
  				// handle the infamous raw deflate response from old servers
  				// a hack for old IIS and Apache servers
@@ -60,12 +60,9 @@ index 567ff5d..8eb45f7 100644
 -						body = body.pipe(zlib.createInflate());
 +						body = Stream.pipeline(body, zlib.createInflate(), error => { if (error) reject(error); });
  					} else {
--						body = body.pipe(zlib.createInflateRaw());
-+						body = Stream.pipeline(body, zlib.createInflateRaw(), error => { if (error) reject(error); });
+ 						body = body.pipe(zlib.createInflateRaw());
  					}
- 					response = new Response(body, response_options);
- 					resolve(response);
-@@ -1712,7 +1712,7 @@ function fetch(url, opts) {
+@@ -1661,7 +1661,7 @@
  
  			// for br
  			if (codings == 'br' && typeof zlib.createBrotliDecompress === 'function') {

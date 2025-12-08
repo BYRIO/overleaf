@@ -29,6 +29,7 @@ build-base:
 	echo "build base ${aliyun_tag} with $(DOCKER_CONFIG)"
 	cp .dockerignore $(MONOREPO_ROOT)
 	docker build \
+	  --network=host \
 	  --build-arg BUILDKIT_INLINE_CACHE=1 \
 	  --progress=plain \
 	  --file Dockerfile-base \
@@ -45,6 +46,7 @@ build-community:
 	echo "build community ${aliyun_tag} with $(DOCKER_CONFIG)"
 	cp .dockerignore $(MONOREPO_ROOT)
 	docker build \
+	  --network=host \
 	  --build-arg BUILDKIT_INLINE_CACHE=1 \
 	  --progress=plain \
 	  --build-arg OVERLEAF_BASE_TAG \

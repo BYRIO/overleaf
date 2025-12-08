@@ -5,7 +5,8 @@ console.log('set -ex')
 
 switch (process.argv.pop()) {
   case 'install':
-    console.log('npm install --omit=dev')
+    // Install all workspace deps including dev to ensure build tooling and shared deps are present
+    console.log('npm install --include=dev --production=false')
     break
   case 'compile':
     for (const service of services) {
@@ -19,8 +20,14 @@ switch (process.argv.pop()) {
           // Avoid downloading of cypress
           console.log('export CYPRESS_INSTALL_BINARY=0')
 
-          // install webpack and frontend dependencies
-          console.log('npm install --include=dev')
+          // install webpack and frontend dependencies (force dev deps even if production env)
+          console.log('npm install --include=dev --production=false')
+          // ensure postcss build plugins are present
+          console.log('npm install --include=dev --production=false --no-save autoprefixer')
+          // ensure webpack CLI is present to avoid interactive prompt
+          console.log('npm install --include=dev --production=false --no-save webpack webpack-cli')
+          // webpack CLI is needed for the build; ensure it is present
+          console.log('npm ls webpack-cli >/dev/null 2>&1 || npm install --include=dev --production=false --no-save webpack-cli')
           // run webpack
           console.log('npm run webpack:production')
           // uninstall webpack and frontend dependencies

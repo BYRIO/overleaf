@@ -2,7 +2,9 @@
   "name": "overleaf",
   "private": true,
   "dependencies": {
-    "patch-package": "^8.0.0"
+    "patch-package": "^8.0.0",
+    "core-js": "^3.41.0",
+    "autoprefixer": "^10.4.16"
   },
   "devDependencies": {
     "@types/chai": "^4.3.0",
@@ -41,6 +43,7 @@
       "tough-cookie": "5.1.2",
       "form-data": "2.5.5"
     },
+    "nan": "2.24.0",
     "streamdown": {
       "mermaid": "file:./services/web/stubs/mermaid-stub"
     }
