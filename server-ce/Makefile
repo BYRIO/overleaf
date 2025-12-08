@@ -26,6 +26,7 @@ refresh-cache-latest:
 	docker inspect $(OVERLEAF_LATEST) > /dev/null && docker pull $(OVERLEAF_LATEST) || true
 
 build-base:
+	echo "build base ${aliyun_tag} with $(DOCKER_CONFIG)"
 	cp .dockerignore $(MONOREPO_ROOT)
 	docker build \
 	  --build-arg BUILDKIT_INLINE_CACHE=1 \
@@ -36,10 +37,12 @@ build-base:
 	  --cache-from $(OVERLEAF_BASE_BRANCH) \
 	  --tag $(OVERLEAF_BASE_TAG) \
 	  --tag $(OVERLEAF_BASE_BRANCH) \
+	  --tag $(OVERLEAF_BASE_LATEST) \
 	  $(MONOREPO_ROOT)
 
 
 build-community:
+	echo "build community ${aliyun_tag} with $(DOCKER_CONFIG)"
 	cp .dockerignore $(MONOREPO_ROOT)
 	docker build \
 	  --build-arg BUILDKIT_INLINE_CACHE=1 \
@@ -51,13 +54,16 @@ build-community:
 	  --file Dockerfile \
 	  --tag $(OVERLEAF_TAG) \
 	  --tag $(OVERLEAF_BRANCH) \
+	  --tag $(OVERLEAF_LATEST) \
 	  $(MONOREPO_ROOT)
 
 push:
 	docker push $(OVERLEAF_BASE_TAG)
 	docker push $(OVERLEAF_BASE_BRANCH)
+	docker push $(OVERLEAF_BASE_LATEST)
 	docker push $(OVERLEAF_TAG)
 	docker push $(OVERLEAF_BRANCH)
+	docker push $(OVERLEAF_LATEST)
 
 SHELLCHECK_OPTS = \
 	--shell=bash \

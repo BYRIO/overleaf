@@ -65,6 +65,12 @@ in which to run the Overleaf services. Baseimage uses the `runit` service
 manager to manage services, and we add our init-scripts from the `server-ce/runit`
 folder.
 
+## Docker Image Usage
+
+> **This part is customized and maintained by BYRIO**
+
+- address: "registry.cn-hangzhou.aliyuncs.com/byrio/overleaf"
+- Remember run fc-cache in container `sharelatex` after `docker-compose up` each time.
 
 ## Contributing
 

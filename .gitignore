@@ -4,3 +4,7 @@
 # user defined files
 .env
 docker-compose.override.yml
+
+# nodes
+node_modules/
+
