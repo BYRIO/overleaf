@@ -6,83 +6,27 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
+env:
+  GHCR_REGISTRY: ghcr.io/byrio
+  ACR_REGISTRY: registry.cn-hangzhou.aliyuncs.com/byrio
+  BASE_IMAGE: overleaf-base
+  APP_IMAGE: overleaf
+
 jobs:
-  Build-Docker-Image:
+  build-and-push-ghcr:
     runs-on: ubuntu-latest
-
+    env:
+      RELEASE: ${{ startsWith(github.event.commits[0].message, '[release]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Container
-        run: |
-          export GITHUB_RUN_ID=${{ github.run_id }}
-          echo ${DOCKER_CONFIG}
-          cd server-ce/
-          make build-base
-          make build-community
-        
-      - name: Export Docker Image to tar
-        run: |
-          docker save sharelatex/sharelatex > sharelatex.tar
-
-      - name: Export to Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: sharelatex.tar
-          retention-days: 1
-  
-  Publish-Image-to-Ali-ACR:
-    runs-on: ubuntu-latest
-    needs: Build-Docker-Image
-
-    steps:
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-image
-
-      - name: Tag Container
-        run: |
-          docker load < sharelatex.tar
-          docker tag sharelatex/sharelatex registry.cn-hangzhou.aliyuncs.com/byrio/overleaf:latest
-          docker tag sharelatex/sharelatex registry.cn-hangzhou.aliyuncs.com/byrio/overleaf:${{ github.sha }}
-
-      - name: Login to Ali-ACR
-        uses: aliyun/acr-login@v1
-        with:
-          region-id: cn-hangzhou
-          access-key-id: "${{ secrets.ACR_ACCESSKEYID }}"
-          access-key-secret: "${{ secrets.ACR_ACCESSKEYSECRET }}"
-
-      - name: Commit Images to Ali-ACR
-        if: startsWith(github.event.commits[0].message, '[release]')
-        run: |
-          export aliyun_registry="registry.cn-hangzhou.aliyuncs.com/byrio/overleaf"
-          echo "Publishing ${aliyun_registry}:${{ github.sha }}"
-          docker push ${aliyun_registry}:${{ github.sha }}
-          docker push ${aliyun_registry}:latest
-
-
-  Publish-Image-to-GHCR:
-    runs-on: ubuntu-latest
-    needs: Build-Docker-Image
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-image
-
-      - name: Tag Container
-        run: |
-          docker load < sharelatex.tar
-          docker tag sharelatex/sharelatex ghcr.io/byrio/overleaf:latest
-          docker tag sharelatex/sharelatex ghcr.io/byrio/overleaf:${{ github.sha }}
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -91,15 +35,74 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit sha-Images to GHCR
+      - name: Build & push base image to GHCR
         run: |
-          export ghcr_registry="ghcr.io/byrio/overleaf"
-          echo "Publishing ${ghcr_registry}:${{ github.sha }}"
-          docker push ${ghcr_registry}:${{ github.sha }}
-      
-      - name: Commit latest-Images to GHCR
-        if: startsWith(github.event.commits[0].message, '[release]')
+          set -euo pipefail
+          cd server-ce
+          TAGS=(--tag ${GHCR_REGISTRY}/${BASE_IMAGE}:${GITHUB_SHA})
+          if [ "${RELEASE}" = "true" ]; then
+            TAGS+=(--tag ${GHCR_REGISTRY}/${BASE_IMAGE}:latest)
+          fi
+
+          DOCKER_BUILDKIT=1 docker buildx build \
+            -f Dockerfile-base \
+            --cache-from type=gha,scope=base \
+            --cache-to type=gha,scope=base,mode=max \
+            --push \
+            "${TAGS[@]}" \
+            ..
+
+      - name: Build & push community image to GHCR
         run: |
-          export ghcr_registry="ghcr.io/byrio/overleaf"
-          echo "Publishing ${ghcr_registry}:latest"
-          docker push ${ghcr_registry}:latest
+          set -euo pipefail
+          cd server-ce
+          TAGS=(--tag ${GHCR_REGISTRY}/${APP_IMAGE}:${GITHUB_SHA})
+          if [ "${RELEASE}" = "true" ]; then
+            TAGS+=(--tag ${GHCR_REGISTRY}/${APP_IMAGE}:latest)
+          fi
+
+          DOCKER_BUILDKIT=1 docker buildx build \
+            -f Dockerfile \
+            --build-arg OVERLEAF_BASE_TAG=${GHCR_REGISTRY}/${BASE_IMAGE}:${GITHUB_SHA} \
+            --cache-from type=gha,scope=community \
+            --cache-to type=gha,scope=community,mode=max \
+            --push \
+            "${TAGS[@]}" \
+            ..
+
+  publish-to-acr:
+    runs-on: ubuntu-latest
+    needs: build-and-push-ghcr
+    if: startsWith(github.event.commits[0].message, '[release]')
+    steps:
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Ali-ACR
+        uses: aliyun/acr-login@v1
+        with:
+          region-id: cn-hangzhou
+          access-key-id: "${{ secrets.ACR_ACCESSKEYID }}"
+          access-key-secret: "${{ secrets.ACR_ACCESSKEYSECRET }}"
+
+      - name: Copy GHCR images to ACR (base & community)
+        run: |
+          set -euo pipefail
+          # base
+          docker buildx imagetools create \
+            --tag ${ACR_REGISTRY}/${BASE_IMAGE}:${GITHUB_SHA} \
+            --tag ${ACR_REGISTRY}/${BASE_IMAGE}:latest \
+            ${GHCR_REGISTRY}/${BASE_IMAGE}:${GITHUB_SHA}
+
+          # community
+          docker buildx imagetools create \
+            --tag ${ACR_REGISTRY}/${APP_IMAGE}:${GITHUB_SHA} \
+            --tag ${ACR_REGISTRY}/${APP_IMAGE}:latest \
+            ${GHCR_REGISTRY}/${APP_IMAGE}:${GITHUB_SHA}
