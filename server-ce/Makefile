@@ -3,7 +3,8 @@
 MONOREPO_ROOT := ../
 HERE=$(shell pwd)
 export MONOREPO_REVISION := $(shell git rev-parse HEAD)
-export BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD)
+# 固定镜像 tag 使用 main，避免随本地分支名变化
+export BRANCH_NAME ?= main
 
 export OVERLEAF_BASE_BRANCH ?= sharelatex/sharelatex-base:$(BRANCH_NAME)
 export OVERLEAF_BASE_LATEST ?= sharelatex/sharelatex-base
