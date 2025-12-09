@@ -56,6 +56,7 @@
 - **Gitbackup 脚本**：`OVERLEAF_MONGO_URL`、`OVERLEAF_CONTAINER_NAME`（与 docker-compose 保持一致）、`GITBACKUP_SSH_PORT`（测试脚本默认 22）。
 - **LLM Chat**：由用户在界面输入 API URL/Key/Model，无必填环境变量。
 - **自助注册限流/域名**：`SELF_REGISTER_RATE_POINTS`（默认 5 次）、`SELF_REGISTER_RATE_DURATION`（默认 3600 秒）、`SELF_REGISTER_RATE_BLOCK_DURATION`（默认 3600 秒）、`SELF_REGISTER_ALLOWED_DOMAINS`（逗号分隔域名列表，例如 `bupt.edu.cn,bupt.cn`，为空则不限制）。
+- **通用受限页提示**：`CONTACT_SUPPORT_TEXT`（如“如需开通访问，请联系 support@example.com”），在 403 受限页显示。
 
 ## 已知风险与排查提示
 - LLM 与 gitbackup 的敏感字段（`llmApiKey`、`sshPrivateKey` 等）以明文存入用户文档，需确保数据库/备份的访问安全。

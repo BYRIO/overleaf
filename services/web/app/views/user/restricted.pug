@@ -12,3 +12,5 @@ block content
 						a.inline-material-symbols(href="/")
 							+material-symbol("arrow_left_alt")
 							| #{translate("take_me_home")}
+					if process.env.CONTACT_SUPPORT_TEXT
+						p.text-muted.mt-3 #{process.env.CONTACT_SUPPORT_TEXT}

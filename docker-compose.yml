@@ -115,6 +115,7 @@ services:
                 SELF_REGISTER_RATE_POINTS: '5'
                 SELF_REGISTER_RATE_DURATION: '3600'
                 SELF_REGISTER_RATE_BLOCK_DURATION: '3600'
+                CONTACT_SUPPORT_TEXT: '如需开通访问，请联系 support@example.com'
             ### Bind-mount source for /var/lib/overleaf/data/compiles inside the container.
             SANDBOXED_COMPILES_HOST_DIR_COMPILES: '/home/user/sharelatex_data/data/compiles'
             ### Bind-mount source for /var/lib/overleaf/data/output inside the container.
