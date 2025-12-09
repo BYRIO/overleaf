@@ -39,7 +39,7 @@ async function getModels(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   const projectId = req.params.Project_id
 
-  logger.info({ userId, projectId }, '[LLMChat] Fetching available models')
+  logger.debug({ userId, projectId }, '[LLMChat] Fetching available models')
 
   try {
     const models = []
@@ -47,7 +47,7 @@ async function getModels(req, res) {
     // 1. Add server-wide models from environment
     const serverModels = getAvailableModels()
     models.push(...serverModels)
-    logger.info({ serverModelCount: serverModels.length, serverModels: serverModels.map(m => m.id) }, '[LLMChat] Server-wide models')
+    logger.debug({ serverModelCount: serverModels.length, serverModels: serverModels.map(m => m.id) }, '[LLMChat] Server-wide models')
 
     // 2. Add user's personal LLM model if configured and activated
     if (userId) {
@@ -64,13 +64,13 @@ async function getModels(req, res) {
           }
           models.push(personalModel)
           
-          logger.info(
+          logger.debug(
             { userId, modelName: user.llmModelName },
             '[LLMChat] Added user personal LLM model to available models'
           )
         }
       } catch (error) {
-        logger.warn(
+        logger.debug(
           { userId, projectId, err: error },
           '[LLMChat] Error fetching user LLM settings'
         )
@@ -85,7 +85,7 @@ async function getModels(req, res) {
       )
     }
 
-    logger.info(
+    logger.debug(
       { userId, projectId, modelCount: models.length, modelIds: models.map(m => m.id) },
       '[LLMChat] Returning available models'
     )
