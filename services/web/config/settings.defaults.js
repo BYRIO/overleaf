@@ -302,17 +302,29 @@ module.exports = {
     recurly: {},
   },
 
-  // Sandbox settings are enforced by configuration and not user-controllable by env.
+  // Sandbox settings (now controllable via env to avoid startup failures in environments without Docker)
   sandbox: {
-    enabled: true,
-    dockerRunner: true,
-    siblingContainers: true,
+    enabled: process.env.SANDBOX_ENABLED !== 'false',
+    dockerRunner: process.env.SANDBOX_DOCKER_RUNNER !== 'false',
+    siblingContainers: process.env.SANDBOX_SIBLING_CONTAINERS !== 'false',
     dockerSocketPath: process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock',
-    texLiveDockerImage: process.env.TEX_LIVE_DOCKER_IMAGE || 'texlive/texlive:latest-full',
-    allTexLiveDockerImages: process.env.ALL_TEX_LIVE_DOCKER_IMAGES || 'texlive/texlive:latest-full',
-    allTexLiveDockerImageNames: process.env.ALL_TEX_LIVE_DOCKER_IMAGE_NAMES || 'TeXLive Latest',
+    texLiveDockerImage:
+      process.env.TEX_LIVE_DOCKER_IMAGE || 'texlive/texlive:latest-full',
+    allTexLiveDockerImages:
+      process.env.ALL_TEX_LIVE_DOCKER_IMAGES || 'texlive/texlive:latest-full',
+    allTexLiveDockerImageNames:
+      process.env.ALL_TEX_LIVE_DOCKER_IMAGE_NAMES || 'TeXLive Latest',
     texCompilerExtraFlags: process.env.TEX_COMPILER_EXTRA_FLAGS || '',
     texliveImageUser: process.env.TEX_LIVE_IMAGE_USER || 'www-data',
+    autoPullTexLiveImage: process.env.AUTO_PULL_TEXLIVE_IMAGE !== 'false',
+    failOnMissingTexLiveImage:
+      process.env.FAIL_ON_MISSING_TEXLIVE_IMAGE !== 'false',
+    failOnImagePullFailure:
+      process.env.FAIL_ON_IMAGE_PULL_FAILURE !== 'false',
+    autoBackfillTexLiveImage:
+      process.env.AUTO_BACKFILL_TEXLIVE_IMAGE !== 'false',
+    autoFallbackTexLiveImage:
+      process.env.AUTO_FALLBACK_TEXLIVE_IMAGE !== 'false',
   },
 
   // Defines which features are allowed in the

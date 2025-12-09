@@ -84,27 +84,37 @@ services:
             ##
             ## Sandboxed Compiles: https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/server-pro-only-configuration/sandboxed-compiles
                 ############################
-                ## Optional: Sandboxed Compiles
-                ############################
+            ## Optional: Sandboxed Compiles
+            ############################
 
-                ## The Community Edition is supplied for environments where all users are trusted. If you want additional isolation
-                ## and run per-project compiles inside sibling containers, you can enable Sandboxed Compiles here. This requires
+            ## The Community Edition is supplied for environments where all users are trusted. If you want additional isolation
+            ## and run per-project compiles inside sibling containers, you can enable Sandboxed Compiles here. This requires
                 ## bind-mounting the Docker socket and host directories and comes with additional security considerations.
                 ## See: https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/server-pro-only-configuration/sandboxed-compiles
                 ## To enable sandboxed compiles in the CE or Pro editions, set the following environment variables (and mount the
                 ## docker socket and host directories as shown below):
                     # SANDBOXED_COMPILES and sibling container mode are enforced in application code.
+                SANDBOX_ENABLED: 'true'          # 设为 false 可完全关闭沙箱
+                SANDBOX_DOCKER_RUNNER: 'true'    # 设为 false 在无 Docker 环境降级
+                SANDBOX_SIBLING_CONTAINERS: 'true'
                 DOCKER_SOCKET_PATH: '/var/run/docker.sock'
-                # Note: SANDBOXED_COMPILES and sibling container mode are enforced in application code; DO NOT set these envs.
                 ALL_TEX_LIVE_DOCKER_IMAGES: 'texlive/texlive:latest-full'
                 ALL_TEX_LIVE_DOCKER_IMAGE_NAMES: 'TeXLive Latest'
                 TEX_LIVE_DOCKER_IMAGE: 'texlive/texlive:latest-full'
-                    # ENFORCE_SANDBOXED_COMPILES not required; sandboxing is enforced by the server in code.
                 TEX_LIVE_IMAGE_USER: 'www-data'
+                AUTO_PULL_TEXLIVE_IMAGE: 'false'      # 如需启动时自动拉取镜像设为 true
+                FAIL_ON_MISSING_TEXLIVE_IMAGE: 'false' # 无镜像时不阻塞启动
+                FAIL_ON_IMAGE_PULL_FAILURE: 'false'
+                AUTO_BACKFILL_TEXLIVE_IMAGE: 'true'
+                AUTO_FALLBACK_TEXLIVE_IMAGE: 'true'
                 OVERLEAF_HOST_DATA_DIR: '/home/user/sharelatex_data'
-                # ENFORCE_SANDBOXED_COMPILES is no longer required; enforcement is in application code.
                 SANDBOXED_COMPILES_HOST_DIR_COMPILES: '/home/user/sharelatex_data/data/compiles'
                 SANDBOXED_COMPILES_HOST_DIR_OUTPUT: '/home/user/sharelatex_data/data/output'
+                # 自助注册限流与邮箱后缀（按需调整/删除）
+                SELF_REGISTER_ALLOWED_DOMAINS: 'bupt.edu.cn,bupt.cn'
+                SELF_REGISTER_RATE_POINTS: '5'
+                SELF_REGISTER_RATE_DURATION: '3600'
+                SELF_REGISTER_RATE_BLOCK_DURATION: '3600'
             ### Bind-mount source for /var/lib/overleaf/data/compiles inside the container.
             SANDBOXED_COMPILES_HOST_DIR_COMPILES: '/home/user/sharelatex_data/data/compiles'
             ### Bind-mount source for /var/lib/overleaf/data/output inside the container.

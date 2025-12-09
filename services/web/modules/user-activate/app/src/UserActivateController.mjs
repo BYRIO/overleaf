@@ -6,8 +6,14 @@ import UserDeleter from '../../../../app/src/Features/User/UserDeleter.mjs'
 import UserUpdater from '../../../../app/src/Features/User/UserUpdater.mjs'
 import ErrorController from '../../../../app/src/Features/Errors/ErrorController.mjs'
 import { expressify } from '@overleaf/promise-utils'
+import settings from '@overleaf/settings'
+import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.js'
 
 const __dirname = Path.dirname(fileURLToPath(import.meta.url))
+const allowedDomains = (process.env.SELF_REGISTER_ALLOWED_DOMAINS || '')
+  .split(',')
+  .map(d => d.trim().toLowerCase())
+  .filter(Boolean)
 
 async function registerNewUser(req, res, next) {
   try {
@@ -33,6 +39,79 @@ async function registerNewUser(req, res, next) {
     )
   } catch (err) {
     next(err)
+  }
+}
+
+async function selfRegisterPage(req, res) {
+  res.render(Path.resolve(__dirname, '../views/user/self-register'), {
+    title: 'self_register',
+    csrfToken: req.csrfToken?.(),
+    success: req.query.success === '1',
+    email: req.query.email,
+  })
+}
+
+async function selfRegister(req, res) {
+  const { email } = req.body
+  const viewData = {
+    title: 'self_register',
+    csrfToken: req.csrfToken?.(),
+    email,
+  }
+
+  if (!email) {
+    viewData.error = '请输入邮箱地址'
+    return res.status(422).render(
+      Path.resolve(__dirname, '../views/user/self-register'),
+      viewData
+    )
+  }
+
+  try {
+    const normalizedEmail = EmailHelper.parseEmail(email)
+    const domain = normalizedEmail.split('@')[1] || ''
+    if (allowedDomains.length > 0 && !allowedDomains.includes(domain)) {
+      return res.status(403).render(
+        Path.resolve(__dirname, '../views/user/self-register'),
+        {
+          ...viewData,
+          error: `当前仅支持以下邮箱后缀注册：${allowedDomains.join(', ')}`,
+        }
+      )
+    }
+
+    const { user } =
+      await UserRegistrationHandler.promises.registerNewUserAndSendActivationEmail(
+        normalizedEmail
+      )
+    return res.render(Path.resolve(__dirname, '../views/user/self-register'), {
+      ...viewData,
+      success: true,
+      email: user.email,
+      info: '激活邮件已发送，请查看邮箱完成注册',
+    })
+  } catch (err) {
+    if (err.message === 'EmailAlreadyRegistered') {
+      return res.render(
+        Path.resolve(__dirname, '../views/user/self-register'),
+        {
+          ...viewData,
+          success: true,
+          info: '该邮箱已注册，已重新发送激活邮件',
+        }
+      )
+    }
+
+    return res.status(500).render(
+      Path.resolve(__dirname, '../views/user/self-register'),
+      {
+        ...viewData,
+        error:
+          settings.adminEmail != null
+            ? `注册失败，请联系管理员（${settings.adminEmail}）`
+            : '注册失败，请稍后重试',
+      }
+    )
   }
 }
 
@@ -174,4 +253,6 @@ export default {
   toggleAdminStatus: expressify(toggleAdminStatus),
   deleteUser: expressify(deleteUser),
   activateAccountPage: expressify(activateAccountPage),
+  selfRegisterPage: expressify(selfRegisterPage),
+  selfRegister: expressify(selfRegister),
 }

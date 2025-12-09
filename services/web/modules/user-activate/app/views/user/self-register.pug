@@ -1,0 +1,36 @@
+extends ../../../../../app/views/layout-marketing
+
+block content
+  main#main-content.content.content-alt
+    .container
+      .row
+        .col-lg-6.offset-lg-3.col-xl-4.offset-xl-4
+          .card
+            .card-body
+              .page-header
+                h1 自助注册
+              if success
+                .alert.alert-success(role='alert')
+                  if info
+                    | #{info}
+                  else
+                    | 激活邮件已发送，请查收。
+              if error
+                .alert.alert-danger(role='alert')
+                  | #{error}
+              form(name='selfRegisterForm' action='/self-register' method='POST')
+                input(type='hidden' name='_csrf' value=csrfToken)
+                .form-group
+                  label(for='emailField') 邮箱
+                  input#emailField.form-control(
+                    type='email'
+                    name='email'
+                    required
+                    placeholder='email@example.com'
+                    value=email
+                    autocomplete='email'
+                  )
+                .actions
+                  button.btn.btn-primary(type='submit') 发送激活邮件
+                p.text-muted.mt-3
+                  | 填写邮箱后会收到一封设置密码的激活邮件。

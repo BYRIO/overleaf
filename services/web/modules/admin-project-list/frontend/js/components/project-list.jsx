@@ -55,6 +55,10 @@ const Link2 = ({ size = 18 }) => (
 
 const ProjectList = () => {
   const [projects, setProjects] = useState([])
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [expandedRows, setExpandedRows] = useState(new Set())
@@ -80,18 +84,22 @@ const ProjectList = () => {
   }
 
   useEffect(() => {
-    fetchProjects()
+    fetchProjects(page, perPage)
   }, [])
 
-  const fetchProjects = async () => {
+  const fetchProjects = async (targetPage = page, targetPerPage = perPage) => {
     try {
       setLoading(true)
-      const response = await fetch('/admin/project/list')
+      const response = await fetch(`/admin/project/list?page=${targetPage}&perPage=${targetPerPage}`)
       if (!response.ok) {
         throw new Error('Failed to fetch projects')
       }
       const data = await response.json()
-      setProjects(data)
+      setProjects(data.projects || [])
+      setPage(data.page || targetPage)
+      setPerPage(data.perPage || targetPerPage)
+      setTotal(data.total || 0)
+      setTotalPages(data.totalPages || 1)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -183,7 +191,7 @@ const ProjectList = () => {
       }
       
       const data = await response.json()
-      setProjects(prev => prev.filter(p => p.id !== projectId))
+      await fetchProjects(page, perPage)
       alert(data.message || 'Project deleted successfully')
       
     } catch (err) {
@@ -227,6 +235,17 @@ const ProjectList = () => {
       return 0
     })
   }, [projects, sortConfig, searchTerm])
+
+  const goToPage = (nextPage) => {
+    const safePage = Math.max(1, Math.min(nextPage, totalPages))
+    fetchProjects(safePage, perPage)
+  }
+
+  const handlePerPageChange = (event) => {
+    const nextPerPage = parseInt(event.target.value, 10) || 20
+    setPerPage(nextPerPage)
+    fetchProjects(1, nextPerPage)
+  }
 
   const getCollaboratorTypeBadge = (type) => {
     const badges = {
@@ -639,8 +658,57 @@ const ProjectList = () => {
             </div>
           )}
 
-          <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #e5e7eb', fontSize: '0.875rem', color: '#6b7280' }}>
-            Showing {filteredAndSortedProjects.length} of {projects.length} projects
+          <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #e5e7eb', fontSize: '0.875rem', color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                onClick={() => goToPage(page - 1)}
+                disabled={page <= 1}
+                style={{
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #d1d5db',
+                  background: page <= 1 ? '#f3f4f6' : 'white',
+                  color: page <= 1 ? '#9ca3af' : '#111827',
+                  cursor: page <= 1 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                上一页
+              </button>
+              <span>
+                第 {page} / {totalPages} 页（共 {total} 个项目）
+              </span>
+              <button
+                onClick={() => goToPage(page + 1)}
+                disabled={page >= totalPages}
+                style={{
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #d1d5db',
+                  background: page >= totalPages ? '#f3f4f6' : 'white',
+                  color: page >= totalPages ? '#9ca3af' : '#111827',
+                  cursor: page >= totalPages ? 'not-allowed' : 'pointer'
+                }}
+              >
+                下一页
+              </button>
+            </div>
+            <div>
+              <label style={{ marginRight: '0.5rem' }}>每页数量</label>
+              <select
+                value={perPage}
+                onChange={handlePerPageChange}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #d1d5db',
+                  background: 'white'
+                }}
+              >
+                {[10, 20, 50, 100].map(size => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>

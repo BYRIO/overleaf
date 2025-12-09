@@ -34,8 +34,18 @@ export default {
 
   async getAllProjects(req, res) {
     try {
-      // Fetch all projects with owner and collaborator information
+      const page = Math.max(parseInt(req.query.page || '1', 10), 1)
+      const perPage = Math.min(
+        Math.max(parseInt(req.query.perPage || '20', 10), 1),
+        100
+      )
+      const total = await Project.countDocuments({}).exec()
+
+      // Fetch paginated projects with owner and collaborator information
       const projects = await Project.find({})
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * perPage)
+        .limit(perPage)
         .populate('owner_ref', 'email first_name last_name')
         .populate('collaberator_refs', 'email first_name last_name')
         .populate('readOnly_refs', 'email first_name last_name')
@@ -187,7 +197,13 @@ export default {
         }
       })
 
-      res.json(projectList)
+      res.json({
+        projects: projectList,
+        total,
+        page,
+        perPage,
+        totalPages: Math.max(1, Math.ceil(total / perPage))
+      })
     } catch (error) {
       logger.error({ err: error }, 'Error fetching projects')
       res.status(500).json({ error: 'Failed to fetch projects' })
