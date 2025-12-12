@@ -36,12 +36,35 @@ const LLMChatPane = React.memo(function LLMChatPane() {
   const [setupSuccess, setSetupSuccess] = useState(false)
   const [setupChecking, setSetupChecking] = useState(false)
   const [setupCheckMessage, setSetupCheckMessage] = useState<string | null>(null)
+  const [existingUserModels, setExistingUserModels] = useState<
+    Array<{ id?: string; modelName: string; apiUrl: string; isDefault?: boolean; hasApiKey?: boolean }>
+  >([])
+  const [setupLoaded, setSetupLoaded] = useState(false)
+  const showSetupView = modelsLoaded && !hasModels
 
   useEffect(() => {
     if (llmChatIsOpen) {
       setChatOpenedOnce(true)
     }
   }, [llmChatIsOpen])
+
+  useEffect(() => {
+    async function fetchUserLLMSettings() {
+      if (setupLoaded || !showSetupView) return
+      try {
+        const response = await fetch('/user/llm-settings')
+        const data = await response.json()
+        if (Array.isArray(data.models)) {
+          setExistingUserModels(data.models)
+        }
+      } catch (err) {
+        console.error('[LLMChat] Failed to load user LLM settings:', err)
+      } finally {
+        setSetupLoaded(true)
+      }
+    }
+    fetchUserLLMSettings()
+  }, [showSetupView, setupLoaded])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,16 +99,30 @@ const LLMChatPane = React.memo(function LLMChatPane() {
     setSetupSuccess(false)
 
     try {
+      const mergedModels = [
+        ...existingUserModels.map(m => ({
+          id: m.id,
+          modelName: m.modelName,
+          apiUrl: m.apiUrl,
+          isDefault: false,
+        })),
+        {
+          modelName: setupModelName,
+          apiUrl: setupApiUrl,
+          apiKey: setupApiKey,
+          isDefault: true,
+        },
+      ]
+
       await postJSON('/user/llm-settings', {
         body: {
           useOwnLLMSettings: true,
-          llmApiKey: setupApiKey || undefined,
-          llmModelName: setupModelName,
-          llmApiUrl: setupApiUrl,
+          llmModels: mergedModels,
         },
       })
       setSetupSuccess(true)
       setSetupApiKey('')
+      setSetupLoaded(false)
       await refreshModels()
     } catch (err: any) {
       const friendlyMessage =
@@ -130,7 +167,6 @@ const LLMChatPane = React.memo(function LLMChatPane() {
     return null
   }
 
-  const showSetupView = modelsLoaded && !hasModels
   const displayMessages = messages.filter(m => m.role !== 'system')
   const showModelSelector = models.length > 0 && !showSetupView
 

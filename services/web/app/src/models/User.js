@@ -235,6 +235,17 @@ const UserSchema = new Schema(
     llmApiKey: { type: String, default: "" },
     llmModelName: { type: String, default: "" },
     llmApiUrl: { type: String, default: "" },
+    llmModels: {
+      type: [
+        {
+          modelName: { type: String, default: '' },
+          apiUrl: { type: String, default: '' },
+          apiKey: { type: String, default: '' },
+          isDefault: { type: Boolean, default: false },
+        },
+      ],
+      default: [],
+    },
   },
   { minimize: false }
 )

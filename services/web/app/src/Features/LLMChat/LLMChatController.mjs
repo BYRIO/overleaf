@@ -52,22 +52,52 @@ async function getModels(req, res) {
     // 2. Add user's personal LLM model if configured and activated
     if (userId) {
       try {
-        const user = await User.findById(userId, 'useOwnLLMSettings llmModelName llmApiUrl llmApiKey')
-        
-        if (user && user.useOwnLLMSettings && user.llmModelName && user.llmApiUrl && user.llmApiKey) {
-          const personalModel = {
-            id: `personal-${user.llmModelName}`,
-            name: `${user.llmModelName} (🔒 Personal)`,
-            isDefault: false,
-            isPersonal: true,
-            label: 'Private',
+        const user = await User.findById(userId, 'useOwnLLMSettings llmModelName llmApiUrl llmApiKey llmModels')
+
+        if (user && user.useOwnLLMSettings) {
+          let personalModels = []
+
+          if (Array.isArray(user.llmModels) && user.llmModels.length > 0) {
+            personalModels = user.llmModels
+          } else if (user.llmModelName && user.llmApiUrl && user.llmApiKey) {
+            // Backward compatibility: single legacy model
+            personalModels = [
+              {
+                _id: 'legacy',
+                modelName: user.llmModelName,
+                apiUrl: user.llmApiUrl,
+                apiKey: user.llmApiKey,
+                isDefault: true,
+              },
+            ]
           }
-          models.push(personalModel)
-          
-          logger.debug(
-            { userId, modelName: user.llmModelName },
-            '[LLMChat] Added user personal LLM model to available models'
-          )
+
+          if (personalModels.length > 0) {
+            // Ensure one default
+            const hasDefault = personalModels.some(m => m.isDefault)
+            if (!hasDefault) {
+              personalModels[0].isDefault = true
+            }
+
+            personalModels.forEach(m => {
+              models.push({
+                id: `personal-${m._id.toString()}`,
+                name: `${m.modelName} (🔒 Personal)`,
+                isDefault: Boolean(m.isDefault),
+                isPersonal: true,
+                label: 'Private',
+              })
+            })
+
+            logger.debug(
+              {
+                userId,
+                modelNames: personalModels.map(m => m.modelName),
+                count: personalModels.length,
+              },
+              '[LLMChat] Added user personal LLM models to available models'
+            )
+          }
         }
       } catch (error) {
         logger.debug(
@@ -128,20 +158,64 @@ async function chat(req, res) {
   let llmApiUrl = process.env.LLM_API_URL
   let llmApiKey = process.env.LLM_API_KEY
   let usingUserSettings = false
+  let modelNameForApi = model || 'qwen3-32b'
 
   if (isPersonalModel && userId) {
     try {
-      const user = await User.findById(userId, 'useOwnLLMSettings llmApiUrl llmApiKey llmModelName')
-      if (user && user.useOwnLLMSettings && user.llmApiUrl && user.llmApiKey) {
-        llmApiUrl = user.llmApiUrl
-        llmApiKey = user.llmApiKey
-        usingUserSettings = true
-        
-        logger.info({ 
-          projectId, 
-          userId,
-          usingUserSettings: true 
-        }, '[LLMChat] Using user\'s own LLM settings')
+      const user = await User.findById(userId, 'useOwnLLMSettings llmApiUrl llmApiKey llmModelName llmModels')
+      if (user && user.useOwnLLMSettings) {
+        let personalModels = Array.isArray(user.llmModels) ? user.llmModels : []
+
+        // Backward compatibility
+        if (personalModels.length === 0 && user.llmModelName && user.llmApiUrl && user.llmApiKey) {
+          personalModels = [
+            {
+              _id: 'legacy',
+              modelName: user.llmModelName,
+              apiUrl: user.llmApiUrl,
+              apiKey: user.llmApiKey,
+              isDefault: true,
+            },
+          ]
+        }
+
+        // Resolve requested model
+        const modelId = model.substring('personal-'.length)
+        let selectedModel =
+          personalModels.find(m => m._id?.toString() === modelId) ||
+          personalModels.find(m => m.modelName === modelId) // legacy id fallback
+
+        if (!selectedModel) {
+          // If no explicit model found, fall back to default one
+          selectedModel =
+            personalModels.find(m => m.isDefault) || personalModels[0]
+        }
+
+        if (selectedModel && selectedModel.apiUrl && (selectedModel.apiKey || user.llmApiKey)) {
+          llmApiUrl = selectedModel.apiUrl
+          llmApiKey = selectedModel.apiKey || user.llmApiKey
+          modelNameForApi = selectedModel.modelName
+          usingUserSettings = true
+          
+          logger.info({ 
+            projectId, 
+            userId,
+            usingUserSettings: true,
+            selectedModel: selectedModel.modelName,
+            modelId
+          }, '[LLMChat] Using user\'s own LLM settings')
+        } else {
+          logger.error({ 
+            projectId, 
+            userId,
+            modelId,
+            hasApiUrl: !!selectedModel?.apiUrl,
+            hasApiKey: !!selectedModel?.apiKey
+          }, '[LLMChat] User LLM settings incomplete')
+          return res.status(400).json({ 
+            error: 'Your LLM settings are incomplete. Please configure API URL, API Key, and Model Name in your account settings.' 
+          })
+        }
       } else {
         logger.error({ 
           projectId, 
@@ -185,10 +259,10 @@ async function chat(req, res) {
     return res.status(503).json({ error: 'LLM service is not configured' })
   }
 
-  // Get the actual model name (strip personal- prefix if present)
-  const modelNameForApi = isPersonalModel && model
-    ? model.substring('personal-'.length)
-    : (model || 'qwen3-32b')
+  // For server-wide models, derive name
+  if (!isPersonalModel) {
+    modelNameForApi = model || 'qwen3-32b'
+  }
   
   logger.info({
     projectId,

@@ -118,7 +118,7 @@ async function checkLLMConnection(req, res) {
 
 async function saveLLMSettings(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
-  const { useOwnLLMSettings, llmApiKey, llmModelName, llmApiUrl } = req.body
+  const { useOwnLLMSettings, llmApiKey, llmModelName, llmApiUrl, llmModels } = req.body
 
   logger.info(
     {
@@ -127,46 +127,106 @@ async function saveLLMSettings(req, res) {
       hasApiKey: !!llmApiKey,
       llmModelName,
       llmApiUrl,
+      hasModelsArray: Array.isArray(llmModels),
     },
     '[UserLLMSettings] Saving LLM settings'
   )
 
   try {
-    // If user is enabling their own LLM settings, validate required fields
-    if (useOwnLLMSettings) {
-      // Get current user to check if they have an existing API key
-      const currentUser = await User.findById(userId, 'llmApiKey')
-      const hasExistingApiKey = currentUser && currentUser.llmApiKey
-      
-      // Validate that all required fields are provided
-      if (!llmApiUrl || !llmModelName) {
-        logger.error({ userId, hasApiUrl: !!llmApiUrl, hasModelName: !!llmModelName }, 
-          '[UserLLMSettings] Missing required fields')
-        return res.status(400).json({
-          success: false,
-          error: 'API URL and Model Name are required when enabling custom LLM settings',
-        })
-      }
-      
-      // API key is required only if user doesn't have one already
-      if (!hasExistingApiKey && (!llmApiKey || llmApiKey.trim() === '')) {
-        logger.error({ userId }, '[UserLLMSettings] Missing API key for new configuration')
-        return res.status(400).json({
-          success: false,
-          error: 'API Key is required when enabling custom LLM settings',
-        })
-      }
+    const currentUser = await User.findById(userId, 'llmApiKey llmModels llmApiUrl llmModelName useOwnLLMSettings')
+    const existingModels = Array.isArray(currentUser?.llmModels)
+      ? currentUser.llmModels.map(m => ({
+          id: m._id?.toString(),
+          modelName: m.modelName,
+          apiUrl: m.apiUrl,
+          apiKey: m.apiKey,
+          isDefault: Boolean(m.isDefault),
+        }))
+      : []
+
+    let modelsToSave = existingModels
+
+    if (Array.isArray(llmModels)) {
+      modelsToSave = llmModels.map(m => {
+        const normalizedId = m.id || m._id
+        const prev = existingModels.find(em => em.id === normalizedId || em.modelName === m.modelName)
+        const apiKey = m.apiKey && m.apiKey.trim() !== '' ? m.apiKey : prev?.apiKey || ''
+        return {
+          id: normalizedId,
+          modelName: (m.modelName || '').trim(),
+          apiUrl: (m.apiUrl || '').trim(),
+          apiKey,
+          isDefault: Boolean(m.isDefault),
+        }
+      })
+    } else if (useOwnLLMSettings && llmApiUrl && llmModelName) {
+      // fallback to single model path
+      modelsToSave = [
+        {
+          id: 'legacy',
+          modelName: llmModelName,
+          apiUrl: llmApiUrl,
+          apiKey: llmApiKey || currentUser?.llmApiKey || '',
+          isDefault: true,
+        },
+      ]
     }
+
+    if (useOwnLLMSettings) {
+      if (!modelsToSave || modelsToSave.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'At least one personal model is required when enabling custom LLM settings',
+        })
+      }
+
+      // Validation and default selection
+      let hasDefault = false
+      for (const m of modelsToSave) {
+        if (!m.modelName || !m.apiUrl) {
+          return res.status(400).json({
+            success: false,
+            error: 'Each model requires API URL and Model Name',
+          })
+        }
+        if (!m.apiKey || m.apiKey.trim() === '') {
+          return res.status(400).json({
+            success: false,
+            error: `Model "${m.modelName}" is missing an API key`,
+          })
+        }
+        if (m.isDefault) hasDefault = true
+      }
+      if (!hasDefault) {
+        modelsToSave[0].isDefault = true
+      }
+    } else {
+      modelsToSave = []
+    }
+
+    // Map to persistence shape
+    const mappedModels = modelsToSave.map(m => ({
+      _id: m.id, // let mongoose reuse _id if provided
+      modelName: m.modelName,
+      apiUrl: m.apiUrl,
+      apiKey: m.apiKey,
+      isDefault: Boolean(m.isDefault),
+    }))
+
+    const defaultModel = mappedModels.find(m => m.isDefault) || mappedModels[0]
 
     const updateData = {
       useOwnLLMSettings: Boolean(useOwnLLMSettings),
-      llmModelName: llmModelName || '',
-      llmApiUrl: llmApiUrl || '',
+      llmModels: mappedModels,
+      llmModelName: defaultModel?.modelName || '',
+      llmApiUrl: defaultModel?.apiUrl || '',
     }
 
-    // Only update API key if a new one is provided
+    // Only update legacy api key if a new one is provided (for backwards compatibility)
     if (llmApiKey && llmApiKey.trim() !== '') {
       updateData.llmApiKey = llmApiKey
+    } else if (defaultModel?.apiKey) {
+      updateData.llmApiKey = defaultModel.apiKey
     }
 
     await User.updateOne({ _id: userId }, { $set: updateData })
@@ -198,4 +258,23 @@ async function saveLLMSettings(req, res) {
 export default {
   checkLLMConnection: expressify(checkLLMConnection),
   saveLLMSettings: expressify(saveLLMSettings),
+  getLLMSettings: expressify(async function getLLMSettings(req, res) {
+    const userId = SessionManager.getLoggedInUserId(req.session)
+    const user = await User.findById(userId, 'useOwnLLMSettings llmModels llmModelName llmApiUrl llmApiKey')
+    const models = (user?.llmModels || []).map(m => ({
+      id: m._id?.toString(),
+      modelName: m.modelName,
+      apiUrl: m.apiUrl,
+      isDefault: Boolean(m.isDefault),
+      hasApiKey: Boolean(m.apiKey),
+    }))
+    res.json({
+      useOwnLLMSettings: Boolean(user?.useOwnLLMSettings),
+      models,
+      // legacy fallbacks
+      modelName: user?.llmModelName || '',
+      apiUrl: user?.llmApiUrl || '',
+      hasApiKey: Boolean(user?.llmApiKey),
+    })
+  }),
 }
