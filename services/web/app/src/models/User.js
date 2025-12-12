@@ -242,6 +242,10 @@ const UserSchema = new Schema(
           apiUrl: { type: String, default: '' },
           apiKey: { type: String, default: '' },
           isDefault: { type: Boolean, default: false },
+          provider: { type: String, default: 'openai_style' },
+          // optional per-provider overrides
+          maxTokens: { type: Number },
+          temperature: { type: Number },
         },
       ],
       default: [],

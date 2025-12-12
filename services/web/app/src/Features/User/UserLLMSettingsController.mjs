@@ -5,6 +5,8 @@ import SessionManager from '../Authentication/SessionManager.mjs'
 import { User } from '../../models/User.js'
 import { expressify } from '@overleaf/promise-utils'
 
+const PROVIDERS = ['openai_style', 'anthropic', 'gemini']
+
 function buildCompletionsUrl(apiUrl = '') {
   const trimmed = apiUrl.replace(/\/+$/, '')
   if (/\/chat\/completions$/i.test(trimmed)) {
@@ -13,11 +15,88 @@ function buildCompletionsUrl(apiUrl = '') {
   return `${trimmed}/chat/completions`
 }
 
+const ProviderAdapters = {
+  openai_style: {
+    build(apiUrl, apiKey, model) {
+      return {
+        url: buildCompletionsUrl(apiUrl),
+        options: {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: 'Test connection' }],
+            max_tokens: 10,
+            temperature: 0.7,
+          }),
+        },
+      }
+    },
+  },
+  anthropic: {
+    build(apiUrl, apiKey, model) {
+      const url = `${apiUrl.replace(/\/+$/, '')}/v1/messages`
+      return {
+        url,
+        options: {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 10,
+            temperature: 0.7,
+            messages: [{ role: 'user', content: 'Test connection' }],
+          }),
+        },
+      }
+    },
+  },
+  gemini: {
+    build(apiUrl, apiKey, model) {
+      const base = apiUrl.replace(/\/+$/, '')
+      const url = `${base}/v1beta/models/${model}:generateContent`
+      return {
+        url,
+        options: {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: 'Test connection' }],
+              },
+            ],
+            generationConfig: {
+              maxOutputTokens: 10,
+              temperature: 0.7,
+            },
+          }),
+        },
+      }
+    },
+  },
+}
+
+function getProviderAdapter(provider = 'openai_style') {
+  return ProviderAdapters[provider] || ProviderAdapters.openai_style
+}
+
 async function checkLLMConnection(req, res) {
-  const { apiUrl, apiKey, modelName } = req.body
+  const { apiUrl, apiKey, modelName, provider = 'openai_style' } = req.body
 
   logger.info(
-    { apiUrl, modelName },
+    { apiUrl, modelName, provider },
     '[UserLLMSettings] Testing LLM connection'
   )
 
@@ -32,26 +111,11 @@ async function checkLLMConnection(req, res) {
   }, 30000) // 30 seconds timeout for connection check
 
   try {
-    const llmApiUrl = buildCompletionsUrl(apiUrl)
-
-    const requestBody = {
-      model: modelName,
-      messages: [{ role: 'user', content: 'Test connection' }],
-      max_tokens: 10,
-      temperature: 0.7,
-    }
+    const { url: llmApiUrl, options } = getProviderAdapter(provider).build(apiUrl, apiKey, modelName)
 
     const startTime = Date.now()
 
-    const response = await fetch(llmApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    })
+    const response = await fetch(llmApiUrl, { ...options, signal: controller.signal })
 
     clearTimeout(timeout)
     const duration = Date.now() - startTime
@@ -82,10 +146,8 @@ async function checkLLMConnection(req, res) {
       })
     }
 
-    const data = await response.json()
-
     logger.info(
-      { hasChoices: !!data.choices },
+      { status: response.status },
       '[UserLLMSettings] Connection test successful'
     )
 
@@ -149,6 +211,7 @@ async function saveLLMSettings(req, res) {
           apiUrl: m.apiUrl,
           apiKey: m.apiKey,
           isDefault: Boolean(m.isDefault),
+          provider: m.provider || 'openai_style',
         }))
       : []
 
@@ -159,12 +222,14 @@ async function saveLLMSettings(req, res) {
         const normalizedId = m.id || m._id
         const prev = existingModels.find(em => em.id === normalizedId || em.modelName === m.modelName)
         const apiKey = m.apiKey && m.apiKey.trim() !== '' ? m.apiKey : prev?.apiKey || ''
+        const provider = PROVIDERS.includes(m.provider) ? m.provider : (prev?.provider || 'openai_style')
         return {
           id: normalizedId,
           modelName: (m.modelName || '').trim(),
           apiUrl: (m.apiUrl || '').trim(),
           apiKey,
           isDefault: Boolean(m.isDefault),
+          provider,
         }
       })
     } else if (useOwnLLMSettings && llmApiUrl && llmModelName) {
@@ -176,6 +241,7 @@ async function saveLLMSettings(req, res) {
           apiUrl: llmApiUrl,
           apiKey: llmApiKey || currentUser?.llmApiKey || '',
           isDefault: true,
+          provider: 'openai_style',
         },
       ]
     }
@@ -219,6 +285,7 @@ async function saveLLMSettings(req, res) {
       apiUrl: m.apiUrl,
       apiKey: m.apiKey,
       isDefault: Boolean(m.isDefault),
+      provider: m.provider || 'openai_style',
     }))
 
     const defaultModel = mappedModels.find(m => m.isDefault) || mappedModels[0]
@@ -275,6 +342,7 @@ export default {
       apiUrl: m.apiUrl,
       isDefault: Boolean(m.isDefault),
       hasApiKey: Boolean(m.apiKey),
+      provider: m.provider || 'openai_style',
     }))
     res.json({
       useOwnLLMSettings: Boolean(user?.useOwnLLMSettings),

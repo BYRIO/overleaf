@@ -155,6 +155,7 @@ async function settingsPage(req, res) {
           apiUrl: model.apiUrl,
           isDefault: Boolean(model.isDefault),
           hasApiKey: Boolean(model.apiKey),
+          provider: model.provider || 'openai_style',
         })),
       },
       aiErrorAssistant: {

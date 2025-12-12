@@ -31,7 +31,8 @@ function getAvailableModels() {
   return models.map((id, index) => ({
     id: id,
     name: id.replace(/-/g, ' ').toUpperCase(), // Simple formatting
-    isDefault: index === 0 // First model is default
+    isDefault: index === 0, // First model is default
+    provider: 'openai_style',
   }))
 }
 
@@ -42,6 +43,127 @@ function buildCompletionsUrl(apiUrl = '') {
     return trimmed
   }
   return `${trimmed}/chat/completions`
+}
+
+const PROVIDER_ADAPTERS = {
+  openai_style: {
+    buildRequest({ apiUrl, apiKey, modelNameForApi, messages }) {
+      const url = buildCompletionsUrl(apiUrl)
+      const body = {
+        model: modelNameForApi,
+        messages,
+        max_tokens: 8192,
+        temperature: 0.7,
+      }
+      return {
+        url,
+        options: {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(body),
+        },
+      }
+    },
+    extractText(data) {
+      return (
+        data?.choices?.[0]?.message?.content ||
+        data?.choices?.[0]?.text ||
+        null
+      )
+    },
+  },
+  anthropic: {
+    buildRequest({ apiUrl, apiKey, modelNameForApi, messages }) {
+      const url = `${apiUrl.replace(/\/+$/, '')}/v1/messages`
+      const systemMessages = messages
+        .filter(m => m.role === 'system')
+        .map(m => m.content)
+      const system = systemMessages.length > 0 ? systemMessages.join('\n\n') : undefined
+      const converted = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content,
+        }))
+
+      const body = {
+        model: modelNameForApi,
+        max_tokens: 1024,
+        temperature: 0.7,
+        messages: converted,
+      }
+      if (system) body.system = system
+
+      return {
+        url,
+        options: {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify(body),
+        },
+      }
+    },
+    extractText(data) {
+      if (!data?.content) return null
+      const parts = data.content
+        .filter(part => part?.type === 'text' && part.text)
+        .map(part => part.text)
+      return parts.length ? parts.join('') : null
+    },
+  },
+  gemini: {
+    buildRequest({ apiUrl, apiKey, modelNameForApi, messages }) {
+      const base = apiUrl.replace(/\/+$/, '')
+      const url = `${base}/v1beta/models/${modelNameForApi}:generateContent`
+      const systemMessages = messages.filter(m => m.role === 'system')
+      const systemText = systemMessages.map(m => m.content).join('\n\n') || undefined
+      const contentMessages = messages.filter(m => m.role !== 'system')
+      const contents = contentMessages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }))
+      const body = {
+        contents,
+        generationConfig: {
+          maxOutputTokens: 8192,
+          temperature: 0.7,
+        },
+      }
+      if (systemText) {
+        body.systemInstruction = { parts: [{ text: systemText }] }
+      }
+      return {
+        url,
+        options: {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify(body),
+        },
+      }
+    },
+    extractText(data) {
+      const parts = data?.candidates?.[0]?.content?.parts
+      if (!Array.isArray(parts)) return null
+      const texts = parts
+        .filter(p => typeof p.text === 'string')
+        .map(p => p.text)
+      return texts.length ? texts.join('') : null
+    },
+  },
+}
+
+function getAdapter(provider = 'openai_style') {
+  return PROVIDER_ADAPTERS[provider] || PROVIDER_ADAPTERS.openai_style
 }
 
 async function getModels(req, res) {
@@ -95,6 +217,7 @@ async function getModels(req, res) {
                 isDefault: Boolean(m.isDefault),
                 isPersonal: true,
                 label: 'Private',
+                provider: m.provider || 'openai_style',
               })
             })
 
@@ -168,6 +291,7 @@ async function chat(req, res) {
   let llmApiKey = process.env.LLM_API_KEY
   let usingUserSettings = false
   let modelNameForApi = model || 'qwen3-32b'
+  let provider = 'openai_style'
 
   if (isPersonalModel && userId) {
     try {
@@ -204,6 +328,7 @@ async function chat(req, res) {
           llmApiUrl = selectedModel.apiUrl
           llmApiKey = selectedModel.apiKey || user.llmApiKey
           modelNameForApi = selectedModel.modelName
+          provider = selectedModel.provider || 'openai_style'
           usingUserSettings = true
           
           logger.info({ 
@@ -288,8 +413,14 @@ async function chat(req, res) {
   }, 300000) // 5 minutes (300 seconds) - well under the 10 min proxy timeout
 
   try {
-    const llmApiFullUrl = buildCompletionsUrl(llmApiUrl)
-    
+    const adapter = getAdapter(provider)
+    const { url: llmApiFullUrl, options } = adapter.buildRequest({
+      apiUrl: llmApiUrl,
+      apiKey: llmApiKey,
+      modelNameForApi,
+      messages,
+    })
+
     logger.info({ 
       projectId,
       userId,
@@ -298,24 +429,9 @@ async function chat(req, res) {
       messageCount: messages.length 
     }, '[LLMChat] Sending request to LLM API')
 
-    const requestBody = {
-      model: modelNameForApi,
-      messages: messages,
-      max_tokens: 8192,
-      temperature: 0.7
-    }
-
     const startTime = Date.now()
     
-    const response = await fetch(llmApiFullUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${llmApiKey}`
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal
-    })
+    const response = await fetch(llmApiFullUrl, { ...options, signal: controller.signal })
 
     clearTimeout(timeout)
     const duration = Date.now() - startTime
@@ -338,7 +454,7 @@ async function chat(req, res) {
         statusText: response.statusText,
         error: errorText,
         duration: `${duration}ms`,
-        requestBody
+        requestBody: options?.body
       }, '[LLMChat] LLM API error response')
       
       return res.status(response.status).json({
@@ -349,17 +465,25 @@ async function chat(req, res) {
     }
 
     const data = await response.json()
-    
+    const adapter = getAdapter(provider)
+    const extracted = adapter.extractText(data)
+
     // Strip <think> tags from the response content
-    if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
-      const originalContent = data.choices[0].message.content
-      const cleanedContent = stripThinkTags(originalContent)
-      data.choices[0].message.content = cleanedContent
-      
+    if (typeof extracted === 'string') {
+      const cleanedContent = stripThinkTags(extracted)
+
+      data.choices = [
+        {
+          message: {
+            content: cleanedContent,
+          },
+        },
+      ]
+
       logger.debug({
         projectId,
         userId,
-        originalLength: originalContent.length,
+        originalLength: extracted.length,
         cleanedLength: cleanedContent.length
       }, '[LLMChat] Stripped think tags from response')
     }

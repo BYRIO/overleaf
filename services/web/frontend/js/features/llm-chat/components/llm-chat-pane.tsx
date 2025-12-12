@@ -31,13 +31,14 @@ const LLMChatPane = React.memo(function LLMChatPane() {
   const [setupApiKey, setSetupApiKey] = useState('')
   const [setupApiUrl, setSetupApiUrl] = useState('')
   const [setupModelName, setSetupModelName] = useState('qwen3-32b')
+  const [setupProvider, setSetupProvider] = useState<'openai_style' | 'anthropic' | 'gemini'>('openai_style')
   const [setupSaving, setSetupSaving] = useState(false)
   const [setupError, setSetupError] = useState<string | null>(null)
   const [setupSuccess, setSetupSuccess] = useState(false)
   const [setupChecking, setSetupChecking] = useState(false)
   const [setupCheckMessage, setSetupCheckMessage] = useState<string | null>(null)
   const [existingUserModels, setExistingUserModels] = useState<
-    Array<{ id?: string; modelName: string; apiUrl: string; isDefault?: boolean; hasApiKey?: boolean }>
+    Array<{ id?: string; modelName: string; apiUrl: string; isDefault?: boolean; hasApiKey?: boolean; provider?: 'openai_style' | 'anthropic' | 'gemini' }>
   >([])
   const [setupLoaded, setSetupLoaded] = useState(false)
   const showSetupView = modelsLoaded && !hasModels
@@ -104,12 +105,14 @@ const LLMChatPane = React.memo(function LLMChatPane() {
           id: m.id,
           modelName: m.modelName,
           apiUrl: m.apiUrl,
+          provider: m.provider || 'openai_style',
           isDefault: false,
         })),
         {
           modelName: setupModelName,
           apiUrl: setupApiUrl,
           apiKey: setupApiKey,
+          provider: setupProvider,
           isDefault: true,
         },
       ]
@@ -149,6 +152,7 @@ const LLMChatPane = React.memo(function LLMChatPane() {
           apiUrl: setupApiUrl,
           apiKey: setupApiKey,
           modelName: setupModelName,
+          provider: setupProvider,
         },
       })
       setSetupCheckMessage(response?.message || 'Connection successful')
@@ -192,6 +196,18 @@ const LLMChatPane = React.memo(function LLMChatPane() {
                   className="llm-chat-input"
                 />
                 <span className="llm-setup-hint">We append /chat/completions automatically.</span>
+              </label>
+              <label className="llm-setup-label">
+                Provider
+                <select
+                  value={setupProvider}
+                  onChange={(e) => setSetupProvider(e.target.value as typeof setupProvider)}
+                  className="llm-chat-input"
+                >
+                  <option value="openai_style">OpenAI-compatible</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="gemini">Google Gemini</option>
+                </select>
               </label>
               <label className="llm-setup-label">
                 API Key

@@ -21,6 +21,7 @@ type LLMModelInput = {
   apiKey?: string
   hasApiKey?: boolean
   isDefault?: boolean
+  provider?: 'openai_style' | 'anthropic' | 'gemini'
 }
 
 function AccountInfoSection() {
@@ -58,6 +59,7 @@ function AccountInfoSection() {
           apiKey: '',
           hasApiKey: m.hasApiKey,
           isDefault: m.isDefault,
+          provider: m.provider || 'openai_style',
         }))
       : [{
           modelName: llmSettings?.modelName || '',
@@ -65,6 +67,7 @@ function AccountInfoSection() {
           apiKey: '',
           hasApiKey: llmSettings?.hasApiKey,
           isDefault: true,
+          provider: 'openai_style',
         }]
   )
   const [isCheckingConnection, setIsCheckingConnection] = useState(false)
@@ -92,7 +95,7 @@ function AccountInfoSection() {
   const addModel = () => {
     setLlmModels(models => [
       ...models,
-      { modelName: '', apiUrl: '', apiKey: '', hasApiKey: false, isDefault: models.length === 0 },
+      { modelName: '', apiUrl: '', apiKey: '', hasApiKey: false, isDefault: models.length === 0, provider: 'openai_style' },
     ])
   }
 
@@ -104,7 +107,7 @@ function AccountInfoSection() {
       }
       return filtered.length > 0
         ? filtered
-        : [{ modelName: '', apiUrl: '', apiKey: '', hasApiKey: false, isDefault: true }]
+        : [{ modelName: '', apiUrl: '', apiKey: '', hasApiKey: false, isDefault: true, provider: 'openai_style' }]
     })
   }
 
@@ -150,6 +153,7 @@ function AccountInfoSection() {
           apiUrl: targetModel.apiUrl,
           apiKey: targetModel.apiKey,
           modelName: targetModel.modelName,
+          provider: targetModel.provider || 'openai_style',
         },
       })
       setConnectionCheckResult({ success: true, message: response.message || 'Connection successful' })
@@ -167,6 +171,7 @@ function AccountInfoSection() {
       apiUrl: m.apiUrl,
       apiKey: m.apiKey,
       isDefault: m.isDefault,
+      provider: m.provider || 'openai_style',
     }))
 
     runLlmAsync(
@@ -500,7 +505,9 @@ function AccountInfoSection() {
                     onChange={(e) => setModelField(index, 'apiUrl', e.target.value)}
                     placeholder="https://api.openai.com/v1 (no /chat/completions)"
                   />
-                  <OLFormText>Provide the base URL; we append /chat/completions automatically.</OLFormText>
+                  <OLFormText>
+                    For OpenAI-style: base URL only, we append /chat/completions. Anthropic: base like https://api.anthropic.com. Gemini: base like https://generativelanguage.googleapis.com (model goes in path).
+                  </OLFormText>
                 </OLFormGroup>
                 <OLFormGroup controlId={`llm-api-key-${index}`}>
                   <OLFormLabel>API Key</OLFormLabel>
@@ -515,6 +522,18 @@ function AccountInfoSection() {
                   )}
                 </OLFormGroup>
                 <div style={{ display: 'flex', gap: '8px' }}>
+                  <OLFormGroup controlId={`llm-provider-${index}`} style={{ flex: 1 }}>
+                    <OLFormLabel>Provider</OLFormLabel>
+                    <select
+                      className="form-control"
+                      value={model.provider || 'openai_style'}
+                      onChange={(e) => setModelField(index, 'provider', e.target.value as LLMModelInput['provider'])}
+                    >
+                      <option value="openai_style">OpenAI-compatible</option>
+                      <option value="anthropic">Anthropic (Claude)</option>
+                      <option value="gemini">Google Gemini</option>
+                    </select>
+                  </OLFormGroup>
                   <OLButton
                     variant="secondary"
                     onClick={() => removeModel(index)}
