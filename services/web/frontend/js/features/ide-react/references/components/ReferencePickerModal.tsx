@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import type { AdvancedReferenceSearchResult, Bib2JsonEntry } from '@/features/ide-react/references/types'
 
 type FocusArea = 'search' | 'list' | 'footer'
+const DEFAULT_FIELDS = ['author', 'title', 'year', 'journal', 'EntryKey']
 
 export default function ReferencePickerModal({
   show,
@@ -39,7 +40,7 @@ export default function ReferencePickerModal({
   }, [initialSelectedKeys])
 
   const [results, setResults] = useState<{ _source: Bib2JsonEntry }[]>([])
-  const [selectedFields, setSelectedFields] = useState<string[]>(['author', 'title', 'year', 'journal', 'EntryKey'])
+  const [selectedFields, setSelectedFields] = useState<string[]>(DEFAULT_FIELDS)
 
   useEffect(() => {
     let aborted = false
@@ -112,9 +113,19 @@ export default function ReferencePickerModal({
   useEffect(() => {
     // reset focus when show toggles
     if (show) {
+      setSelectedKeys(initialSelectedKeys ?? [])
+      setOriginalKeys(initialSelectedKeys ?? [])
+      setQuery('')
+      setResults([])
+      setSelectedFields(DEFAULT_FIELDS)
       setTimeout(() => searchRef.current?.focus(), 0)
       setFocusArea('search')
       setFocusedIndex(null)
+    } else {
+      // reset when modal closes so next open starts clean
+      setQuery('')
+      setResults([])
+      setSelectedFields(DEFAULT_FIELDS)
     }
   }, [show])
 
@@ -192,6 +203,9 @@ export default function ReferencePickerModal({
 
   // Build list content (avoid complex inline JSX ternary to reduce parser issues)
   const listContent = useMemo(() => {
+    if (!query.trim()) {
+      return null
+    }
     if (!results.length) {
       return <div className="reference-picker-empty" data-testid="reference-picker-empty">{t('references_picker_empty_hint')}</div>
     }
@@ -210,7 +224,12 @@ export default function ReferencePickerModal({
           role="option"
           aria-selected={selectedKeys.includes(key)}
           tabIndex={0}
-          onClick={() => setFocusedIndex(index)}
+          onClick={() => {
+            setFocusedIndex(index)
+            if (!(originalKeys.includes(key) && selectedKeys.includes(key))) {
+              toggleKey(key)
+            }
+          }}
           data-entry-key={key}
           data-testid={`reference-picker-item-${key}`}
         >
@@ -240,18 +259,7 @@ export default function ReferencePickerModal({
       </OLModalHeader>
       <OLModalBody>
         <div onKeyDown={onKeyDown} className="reference-picker">
-          <input
-            aria-label={t('search_references')}
-            type="search"
-            value={query}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
-            autoFocus
-            ref={searchRef}
-            className="form-control"
-            data-testid="reference-picker-search"
-            style={{ marginBottom: '8px' }}
-          />
-          <div className="search-selectors" style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div className="search-selectors" style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             {[
               { label: 'Author', value: 'author' },
               { label: 'Title', value: 'title' },
@@ -259,7 +267,7 @@ export default function ReferencePickerModal({
               { label: 'Journal', value: 'journal' },
               { label: 'Key', value: 'EntryKey' },
             ].map(s => (
-              <label key={s.value} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+              <label key={s.value} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', whiteSpace: 'nowrap' }}>
                 <input
                   type="checkbox"
                   checked={selectedFields.includes(s.value)}
@@ -275,6 +283,17 @@ export default function ReferencePickerModal({
             ))}
           </div>
 
+          <input
+            aria-label={t('search_references')}
+            type="search"
+            value={query}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
+            autoFocus
+            ref={searchRef}
+            className="form-control reference-picker-search"
+            data-testid="reference-picker-search"
+            style={{ marginBottom: '8px' }}
+          />
           <div className="selected-chips" style={{ marginBottom: '8px', alignItems: 'center', display: 'flex', gap: '8px', flexWrap: 'wrap' }} data-testid="reference-picker-selected-chips">
             {selectedKeys.map((key: string) => (
               <Tag key={key} closeBtnProps={{ onClick: () => toggleKey(key) }}>
@@ -283,9 +302,11 @@ export default function ReferencePickerModal({
             ))}
           </div>
 
-          <div role="listbox" aria-label={t('reference_search_results')} id="reference-picker-list" data-testid="reference-picker-list">
-            {listContent}
-          </div>
+          {query.trim() ? (
+            <div role="listbox" aria-label={t('reference_search_results')} id="reference-picker-list" data-testid="reference-picker-list">
+              {listContent}
+            </div>
+          ) : null}
         </div>
       </OLModalBody>
       <OLModalFooter>

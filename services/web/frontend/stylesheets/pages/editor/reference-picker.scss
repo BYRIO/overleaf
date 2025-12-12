@@ -3,6 +3,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-02);
+  position: relative;
+  max-height: calc(100vh - 220px);
+  max-width: 100%;
+  overflow-x: hidden;
 
   input[type="search"],
   input[type="text"] {
@@ -29,10 +33,13 @@
   }
 
   [role="listbox"] {
-    max-height: calc(100vh - 320px);
-    overflow-y: auto;
+    position: static;
+    margin-top: var(--spacing-02);
+    flex: 1 1 auto;
     border-top: 1px solid var(--border-divider);
     border-bottom: 1px solid var(--border-divider);
+    max-height: calc(100vh - 260px);
+    overflow-y: auto;
   }
 
   /* Each result item is a label/option */
@@ -44,6 +51,8 @@
     cursor: pointer;
     border-left: var(--spacing-02) solid transparent;
     outline: none;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   /* Focused / Active item */
@@ -106,6 +115,9 @@
     margin-left: 0;
     width: auto;
     max-width: calc(100% - 80px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .hit-key {
@@ -135,4 +147,3 @@
 
   /* Removed copy button for a leaner UX */
 }
-
