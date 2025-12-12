@@ -34,6 +34,8 @@ const LLMChatPane = React.memo(function LLMChatPane() {
   const [setupSaving, setSetupSaving] = useState(false)
   const [setupError, setSetupError] = useState<string | null>(null)
   const [setupSuccess, setSetupSuccess] = useState(false)
+  const [setupChecking, setSetupChecking] = useState(false)
+  const [setupCheckMessage, setSetupCheckMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (llmChatIsOpen) {
@@ -96,6 +98,34 @@ const LLMChatPane = React.memo(function LLMChatPane() {
     }
   }
 
+  const handleTestLLMConnection = async () => {
+    if (!setupApiUrl || !setupModelName || !setupApiKey) {
+      setSetupError('Please provide API URL, API key, and model name before testing')
+      return
+    }
+    setSetupChecking(true)
+    setSetupCheckMessage(null)
+    setSetupError(null)
+    try {
+      const response = await postJSON('/user/llm-settings/check', {
+        body: {
+          apiUrl: setupApiUrl,
+          apiKey: setupApiKey,
+          modelName: setupModelName,
+        },
+      })
+      setSetupCheckMessage(response?.message || 'Connection successful')
+    } catch (err: any) {
+      const friendlyMessage =
+        typeof err?.getUserFacingMessage === 'function'
+          ? err.getUserFacingMessage()
+          : err?.message || 'Failed to test connection'
+      setSetupError(friendlyMessage)
+    } finally {
+      setSetupChecking(false)
+    }
+  }
+
   if (!chatOpenedOnce) {
     return null
   }
@@ -134,6 +164,7 @@ const LLMChatPane = React.memo(function LLMChatPane() {
                   onChange={(e) => setSetupApiKey(e.target.value)}
                   placeholder="sk-..."
                   className="llm-chat-input"
+                  required
                 />
               </label>
               <label className="llm-setup-label">
@@ -157,14 +188,29 @@ const LLMChatPane = React.memo(function LLMChatPane() {
                   Settings saved. Loading models…
                 </div>
               )}
+              {setupCheckMessage && (
+                <div className="llm-setup-success">
+                  {setupCheckMessage}
+                </div>
+              )}
               <div className="llm-setup-actions">
-                <button
-                  type="submit"
-                  className="llm-action-button"
-                  disabled={setupSaving}
-                >
-                  {setupSaving ? 'Saving…' : 'Save & Enable'}
-                </button>
+                <div className="llm-setup-buttons">
+                  <button
+                    type="button"
+                    className="llm-action-button llm-setup-secondary"
+                    onClick={handleTestLLMConnection}
+                    disabled={setupSaving || setupChecking}
+                  >
+                    {setupChecking ? 'Testing…' : 'Test connection'}
+                  </button>
+                  <button
+                    type="submit"
+                    className="llm-action-button llm-setup-primary"
+                    disabled={setupSaving || setupChecking}
+                  >
+                    {setupSaving ? 'Saving…' : 'Save & enable'}
+                  </button>
+                </div>
                 <a
                   href="/user/settings#llm-settings"
                   className="llm-setup-link"
