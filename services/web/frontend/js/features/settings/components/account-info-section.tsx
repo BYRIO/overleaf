@@ -498,8 +498,9 @@ function AccountInfoSection() {
                     type="text"
                     value={model.apiUrl}
                     onChange={(e) => setModelField(index, 'apiUrl', e.target.value)}
-                    placeholder="https://api.openai.com/v1"
+                    placeholder="https://api.openai.com/v1 (no /chat/completions)"
                   />
+                  <OLFormText>Provide the base URL; we append /chat/completions automatically.</OLFormText>
                 </OLFormGroup>
                 <OLFormGroup controlId={`llm-api-key-${index}`}>
                   <OLFormLabel>API Key</OLFormLabel>

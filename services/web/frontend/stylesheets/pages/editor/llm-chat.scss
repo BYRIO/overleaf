@@ -192,6 +192,12 @@
       border-color: var(--border-primary);
     }
   }
+
+  .llm-setup-hint {
+    font-size: var(--font-size-01);
+    font-weight: 400;
+    color: var(--llm-chat-instructions-color);
+  }
 }
 
 .llm-setup-actions {

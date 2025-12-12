@@ -5,6 +5,14 @@ import SessionManager from '../Authentication/SessionManager.mjs'
 import { User } from '../../models/User.js'
 import { expressify } from '@overleaf/promise-utils'
 
+function buildCompletionsUrl(apiUrl = '') {
+  const trimmed = apiUrl.replace(/\/+$/, '')
+  if (/\/chat\/completions$/i.test(trimmed)) {
+    return trimmed
+  }
+  return `${trimmed}/chat/completions`
+}
+
 async function checkLLMConnection(req, res) {
   const { apiUrl, apiKey, modelName } = req.body
 
@@ -24,7 +32,7 @@ async function checkLLMConnection(req, res) {
   }, 30000) // 30 seconds timeout for connection check
 
   try {
-    const llmApiUrl = `${apiUrl}/chat/completions`
+    const llmApiUrl = buildCompletionsUrl(apiUrl)
 
     const requestBody = {
       model: modelName,

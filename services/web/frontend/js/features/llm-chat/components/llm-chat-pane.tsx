@@ -187,10 +187,11 @@ const LLMChatPane = React.memo(function LLMChatPane() {
                   type="text"
                   value={setupApiUrl}
                   onChange={(e) => setSetupApiUrl(e.target.value)}
-                  placeholder="https://api.openai.com/v1"
+                  placeholder="https://api.openai.com/v1 (no /chat/completions)"
                   required
                   className="llm-chat-input"
                 />
+                <span className="llm-setup-hint">We append /chat/completions automatically.</span>
               </label>
               <label className="llm-setup-label">
                 API Key

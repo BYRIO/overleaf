@@ -35,6 +35,15 @@ function getAvailableModels() {
   }))
 }
 
+// Normalize an API base URL to the chat completions endpoint
+function buildCompletionsUrl(apiUrl = '') {
+  const trimmed = apiUrl.replace(/\/+$/, '')
+  if (/\/chat\/completions$/i.test(trimmed)) {
+    return trimmed
+  }
+  return `${trimmed}/chat/completions`
+}
+
 async function getModels(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   const projectId = req.params.Project_id
@@ -279,7 +288,7 @@ async function chat(req, res) {
   }, 300000) // 5 minutes (300 seconds) - well under the 10 min proxy timeout
 
   try {
-    const llmApiFullUrl = `${llmApiUrl}/chat/completions`
+    const llmApiFullUrl = buildCompletionsUrl(llmApiUrl)
     
     logger.info({ 
       projectId,
