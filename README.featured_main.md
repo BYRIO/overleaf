@@ -53,10 +53,11 @@
 ## 环境变量清单（按模块）
 - **沙箱编译**：`SANDBOX_ENABLED`（默认 true，可设为 `false` 关闭）、`SANDBOX_DOCKER_RUNNER`、`SANDBOX_SIBLING_CONTAINERS`、`DOCKER_SOCKET_PATH`、`TEX_LIVE_DOCKER_IMAGE`、`ALL_TEX_LIVE_DOCKER_IMAGES`、`ALL_TEX_LIVE_DOCKER_IMAGE_NAMES`、`TEX_COMPILER_EXTRA_FLAGS`、`TEX_LIVE_IMAGE_USER`、`AUTO_PULL_TEXLIVE_IMAGE`、`FAIL_ON_MISSING_TEXLIVE_IMAGE`、`FAIL_ON_IMAGE_PULL_FAILURE`、`AUTO_BACKFILL_TEXLIVE_IMAGE`、`AUTO_FALLBACK_TEXLIVE_IMAGE`。
 - **Track-changes 调试**：`DEBUG_ROUTES=true` 可输出路由列表。
-- **Gitbackup 脚本**：`OVERLEAF_MONGO_URL`、`OVERLEAF_CONTAINER_NAME`（与 docker-compose 保持一致）、`GITBACKUP_SSH_PORT`（测试脚本默认 22）。
+- **Gitbackup**：`GITBACKUP_ENABLED`（默认 false）、`GITBACKUP_IMAGE`、`GITBACKUP_CONTAINER_NAME`、`GITBACKUP_SSH_PORT`（宿主对外 SSH 端口）、`GITBACKUP_PUID`/`GITBACKUP_PGID`（运行用户/组）、`GITBACKUP_DATA_DIR`（容器内路径，默认 `/var/lib/overleaf/gitbackup`）、`GITBACKUP_HOST_DATA_DIR`（宿主挂载路径）、`GITBACKUP_HOST_LOG_DIR`、`GITBACKUP_HOST_ETC_DIR`、`GITBACKUP_CHECK_INTERVAL`（ms，默认 30000）、`GITBACKUP_PULL_IMAGE`（true 时启动前拉镜像）、`DOCKER_NETWORK`（默认 bridge，用于 gitbackup sidecar）。脚本操作 Mongo 时仍需 `OVERLEAF_MONGO_URL`、`OVERLEAF_CONTAINER_NAME`。
 - **LLM Chat**：由用户在界面输入 API URL/Key/Model，无必填环境变量。
 - **自助注册限流/域名**：`SELF_REGISTER_RATE_POINTS`（默认 5 次）、`SELF_REGISTER_RATE_DURATION`（默认 3600 秒）、`SELF_REGISTER_RATE_BLOCK_DURATION`（默认 3600 秒）、`SELF_REGISTER_ALLOWED_DOMAINS`（逗号分隔域名列表，例如 `bupt.edu.cn,bupt.cn`，为空则不限制）。
 - **通用受限页提示**：`CONTACT_SUPPORT_TEXT`（如“如需开通访问，请联系 support@example.com”），在 403 受限页显示。
+- **SSH 公钥**：无额外环境变量，用户可在账号设置中自行粘贴公钥（私钥不存储）。
 
 ## 已知风险与排查提示
 - LLM 与 gitbackup 的敏感字段（`llmApiKey`、`sshPrivateKey` 等）以明文存入用户文档，需确保数据库/备份的访问安全。

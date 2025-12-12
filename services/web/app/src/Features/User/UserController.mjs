@@ -334,6 +334,7 @@ const updateUserSettingsSchema = z.object({
     .object({
       first_name: z.string().max(255).nullish(),
       last_name: z.string().max(255).nullish(),
+      sshPublicKey: z.string().max(16384).nullish(),
     })
     .passthrough(),
   // TODO: complete the schema and remove the passthrough
@@ -406,6 +407,9 @@ async function updateUserSettings(req, res, next) {
   }
   if (body.enableNewEditor != null) {
     user.ace.enableNewEditor = Boolean(body.enableNewEditor)
+  }
+  if (body.sshPublicKey !== undefined) {
+    user.sshPublicKey = (body.sshPublicKey || '').trim()
   }
   await user.save()
 

@@ -116,6 +116,21 @@ services:
                 SELF_REGISTER_RATE_DURATION: '3600'
                 SELF_REGISTER_RATE_BLOCK_DURATION: '3600'
                 CONTACT_SUPPORT_TEXT: '如需开通访问，请联系 support@example.com'
+                ## Gitbackup (可选，启用后会启动 gitbackup sidecar 容器)
+                GITBACKUP_ENABLED: "false"
+                GITBACKUP_IMAGE: "sharelatex/sharelatex-gitbackup:latest"
+                GITBACKUP_CONTAINER_NAME: "gitbackup"
+                GITBACKUP_SSH_PORT: "2222"
+                GITBACKUP_PUID: "1000"
+                GITBACKUP_PGID: "1000"
+                GITBACKUP_DATA_DIR: "/var/lib/overleaf/gitbackup"
+                # 宿主机路径，用于持久化 gitbackup 数据
+                GITBACKUP_HOST_DATA_DIR: "/home/user/sharelatex_data/gitbackup"
+                GITBACKUP_HOST_LOG_DIR: "/home/user/sharelatex_data/gitbackup/log"
+                GITBACKUP_HOST_ETC_DIR: "/home/user/sharelatex_data/gitbackup/etc"
+                GITBACKUP_CHECK_INTERVAL: "30000"
+                GITBACKUP_PULL_IMAGE: "false"
+                DOCKER_NETWORK: "bridge"
             ### Bind-mount source for /var/lib/overleaf/data/compiles inside the container.
             SANDBOXED_COMPILES_HOST_DIR_COMPILES: '/home/user/sharelatex_data/data/compiles'
             ### Bind-mount source for /var/lib/overleaf/data/output inside the container.

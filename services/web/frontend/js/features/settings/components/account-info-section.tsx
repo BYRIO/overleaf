@@ -36,7 +36,7 @@ function AccountInfoSection() {
   const [isFormValid, setIsFormValid] = useState(true)
 
   const [showSshPublic, setShowSshPublic] = useState(false)
-  const [showSshPrivate, setShowSshPrivate] = useState(false)
+  const [sshPublic, setSshPublic] = useState(sshkeys?.Public || '')
 
   // LLM Settings state
   const [useOwnLLMSettings, setUseOwnLLMSettings] = useState(llmSettings?.useOwnSettings || false)
@@ -47,6 +47,7 @@ function AccountInfoSection() {
   const [isCheckingConnection, setIsCheckingConnection] = useState(false)
   const [connectionCheckResult, setConnectionCheckResult] = useState<{ success: boolean, message: string } | null>(null)
   const { isLoading: isLlmSaving, isSuccess: isLlmSuccess, isError: isLlmError, error: llmError, runAsync: runLlmAsync } = useAsync()
+  const { isLoading: isSshSaving, isSuccess: isSshSuccess, isError: isSshError, error: sshError, runAsync: runSshAsync } = useAsync()
 
   const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(event.target.value)
@@ -131,6 +132,16 @@ function AccountInfoSection() {
         })
       ).catch(() => {})
     }
+  }
+
+  const handleSaveSshKeys = () => {
+    runSshAsync(
+      postJSON('/user/settings', {
+        body: {
+          sshPublicKey: sshPublic,
+        },
+      })
+    ).catch(() => {})
   }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -290,6 +301,67 @@ function AccountInfoSection() {
             </OLFormGroup>
           )}
         </>
+      )}
+
+      {/* SSH Keys Section - editable */}
+      <h3 id="ssh-keys" style={{ marginTop: '2rem' }}>SSH Keys</h3>
+      <OLFormGroup controlId="ssh-public-key-input">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <OLFormLabel>SSH Public Key</OLFormLabel>
+          <div>
+            <OLButton
+              variant="secondary"
+              size="sm"
+              onClick={() => copyToClipboard(sshPublic)}
+              style={{ marginRight: '0.5rem' }}
+            >
+              Copy
+            </OLButton>
+            <OLButton
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowSshPublic(!showSshPublic)}
+            >
+              {showSshPublic ? 'Hide' : 'Show'}
+            </OLButton>
+          </div>
+        </div>
+        {showSshPublic && (
+          <textarea
+            className="form-control"
+            value={sshPublic}
+            onChange={e => setSshPublic(e.target.value)}
+            rows={4}
+            style={{ fontFamily: 'monospace', fontSize: '12px', marginTop: '0.5rem' }}
+          />
+        )}
+      </OLFormGroup>
+      <OLFormText>平台不存储私钥，请仅粘贴公钥，私钥请自行保管。</OLFormText>
+
+      <OLFormGroup>
+        <OLButton
+          variant="primary"
+          onClick={handleSaveSshKeys}
+          disabled={isSshSaving}
+          isLoading={isSshSaving}
+          loadingLabel={t('saving') + '…'}
+        >
+          保存 SSH 密钥
+        </OLButton>
+      </OLFormGroup>
+
+      {isSshSuccess && (
+        <OLFormGroup>
+          <OLNotification type="success" content="SSH 密钥已保存" />
+        </OLFormGroup>
+      )}
+      {isSshError && (
+        <OLFormGroup>
+          <OLNotification
+            type="error"
+            content={getUserFacingMessage(sshError) ?? '保存 SSH 密钥失败'}
+          />
+        </OLFormGroup>
       )}
 
       {/* LLM Settings Section */}
