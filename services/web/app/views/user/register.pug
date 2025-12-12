@@ -28,8 +28,21 @@ block content
 							.page-header
 								h1 #{translate("register")}
 							p
-								| Please contact
-								|
+								| You can self-register by providing your email address. We will send you an activation email to set your password.
+							form(name='selfRegisterFromRegister' action='/self-register' method='POST')
+								input(type='hidden' name='_csrf' value=csrfToken)
+								.form-group
+									label(for='selfRegisterEmail') #{translate("email")}
+									input#selfRegisterEmail.form-control(
+										type='email'
+										name='email'
+										required
+										placeholder='email@example.com'
+									)
+								.actions
+									button.btn.btn-primary(type='submit') 发送激活邮件
+							hr
+							p
+								| 如果你更倾向于联系管理员，也可以发送邮件至
 								strong #{settings.adminEmail}
-								|
-								| to create an account.
+								| 申请账号。

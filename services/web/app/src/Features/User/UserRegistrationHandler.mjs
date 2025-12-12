@@ -110,14 +110,10 @@ const UserRegistrationHandler = {
 
     const setNewPasswordUrl = `${settings.siteUrl}/user/activate?token=${token}&user_id=${user._id}`
 
-    await EmailHandler.promises
-      .sendEmail('registered', {
-        to: user.email,
-        setNewPasswordUrl,
-      })
-      .catch(error => {
-        logger.warn({ err: error }, 'failed to send activation email')
-      })
+    await EmailHandler.promises.sendEmail('registered', {
+      to: user.email,
+      setNewPasswordUrl,
+    })
 
     return { user, setNewPasswordUrl }
   },
