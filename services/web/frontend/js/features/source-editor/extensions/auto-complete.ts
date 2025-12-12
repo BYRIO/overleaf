@@ -1,6 +1,7 @@
 import {
   acceptCompletion,
   autocompletion,
+  completionStatus,
   closeCompletion,
   moveCompletionSelection,
   startCompletion,
@@ -12,6 +13,7 @@ import {
   Compartment,
   Extension,
   Prec,
+  StateEffect,
   TransactionSpec,
 } from '@codemirror/state'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
@@ -26,6 +28,18 @@ const autoCompleteConf = new Compartment()
 type AutoCompleteOptions = {
   enabled: boolean
 } & Record<string, any>
+
+// Expose a minimal CM API for debugging in the console
+if (typeof window !== 'undefined') {
+  const cm = (window as any).CodeMirror || {}
+  cm.startCompletion = cm.startCompletion || startCompletion
+  cm.completionStatus = cm.completionStatus || completionStatus
+  cm.completionState = cm.completionState || (autocompletion as any).completionState
+  cm.autocompletion = cm.autocompletion || autocompletion
+  cm.closeCompletion = cm.closeCompletion || closeCompletion
+  cm.StateEffect = cm.StateEffect || StateEffect
+  ;(window as any).CodeMirror = cm
+}
 
 export const autoComplete = ({ enabled, ...rest }: AutoCompleteOptions) =>
   autoCompleteConf.of(createAutoComplete({ enabled, ...rest }))
@@ -42,6 +56,7 @@ export const setAutoComplete = ({
 }
 
 const createAutoComplete = ({ enabled, ...rest }: AutoCompleteOptions) => {
+  console.log('[AutoComplete] createAutoComplete enabled', enabled)
   if (!enabled) {
     return []
   }
@@ -58,22 +73,20 @@ const createAutoComplete = ({ enabled, ...rest }: AutoCompleteOptions) => {
         icons: false,
         defaultKeymap: false,
         addToOptions: [
-          // display the completion "type" at the end of the suggestion
           {
+            // show a small type chip when available
             render: completion => {
+              if (!completion.type) return null
               const span = document.createElement('span')
               span.classList.add('ol-cm-completionType')
-              if (completion.type) {
-                span.textContent = completion.type
-              }
+              span.textContent = completion.type
               return span
             },
             position: 400,
           },
         ],
-        optionClass: (completion: Completion) => {
-          return `ol-cm-completion-${completion.type}`
-        },
+        optionClass: (completion: Completion) =>
+          completion.type ? `ol-cm-completion-${completion.type}` : '',
         interactionDelay: 0,
       }),
       /**
@@ -145,6 +158,18 @@ const autocompleteTheme = EditorView.baseTheme({
   '.cm-tooltip.cm-tooltip-autocomplete': {
     // shift the tooltip, so the completion aligns with the text
     marginLeft: '-4px',
+    // force overlay above cursor/line highlights; use !important to override any inline/default z-index
+    zIndex: '2000 !important',
+    width: 'auto',
+    minWidth: '320px',
+    minHeight: '180px',
+    maxWidth: '95vw',
+    pointerEvents: 'auto',
+    maxHeight: 'min(420px, 60vh)',
+    overflowY: 'auto',
+    // let CodeMirror position the tooltip; avoid forcing fixed positioning
+    position: 'absolute',
+    boxShadow: '2px 3px 5px rgba(0, 0, 0, 0.25)',
   },
   '&light .cm-tooltip.cm-tooltip-autocomplete, &light .cm-tooltip.cm-completionInfo':
     {
@@ -165,23 +190,25 @@ const autocompleteTheme = EditorView.baseTheme({
   '.cm-tooltip.cm-tooltip-autocomplete > ul': {
     fontFamily: 'var(--source-font-family)',
     fontSize: 'var(--font-size)',
+    maxHeight: 'inherit',
+    overflowY: 'auto',
+    width: '100%',
   },
   '.cm-tooltip.cm-tooltip-autocomplete li[role="option"]': {
     display: 'flex',
     justifyContent: 'space-between',
     lineHeight: AUTOCOMPLETE_LINE_HEIGHT, // increase the line height from default 1.2, for a larger target area
     outline: '1px solid transparent',
+    padding: '4px 8px',
+    width: '100%',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete ul li[aria-selected]': {
+    color: 'inherit',
+    fontWeight: 700,
+    outline: '1px solid transparent',
   },
   '.cm-tooltip .cm-completionDetail': {
-    flex: '1 0 auto',
-    fontSize: 'calc(var(--font-size) * 1.4)',
-    lineHeight: `calc(var(--font-size) * ${AUTOCOMPLETE_LINE_HEIGHT})`,
-    overflow: 'hidden',
-    // By default CodeMirror styles the details as italic
-    fontStyle: 'normal !important',
-    // We use this element for the symbol palette, so change the font to the
-    // symbol palette font
-    fontFamily: "'Stix Two Math', serif",
+    display: 'none', // hide optional detail to avoid misaligned chips/noisy text
   },
   '&light .cm-tooltip.cm-tooltip-autocomplete li[role="option"]:hover': {
     outlineColor: '#abbffe',
@@ -191,14 +218,13 @@ const autocompleteTheme = EditorView.baseTheme({
     outlineColor: 'rgba(109, 150, 13, 0.8)',
     backgroundColor: 'rgba(58, 103, 78, 0.62)',
   },
-  '.cm-tooltip.cm-tooltip-autocomplete ul li[aria-selected]': {
-    color: 'inherit',
-  },
   '&light .cm-tooltip.cm-tooltip-autocomplete ul li[aria-selected]': {
-    background: '#cad6fa',
+    background: '#b8cbff !important',
+    outlineColor: '#7da0f8',
   },
   '&dark .cm-tooltip.cm-tooltip-autocomplete ul li[aria-selected]': {
-    background: '#3a674e',
+    background: '#2f5940 !important',
+    outlineColor: '#4ca870',
   },
   '.cm-completionMatchedText': {
     textDecoration: 'none', // remove default underline,

@@ -43,6 +43,7 @@ import { keymaps } from './keymaps'
 import { shortcuts } from './shortcuts'
 import { effectListeners } from './effect-listeners'
 import { highlightSpecialChars } from './highlight-special-chars'
+import { autocompletion } from '@codemirror/autocomplete'
 import { toolbarPanel } from './toolbar/toolbar-panel'
 import { breadcrumbPanel } from './breadcrumbs-panel'
 import { geometryChangeEvent } from './geometry-change-event'
@@ -117,6 +118,7 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
 
   // NOTE: `autoComplete` needs to be before `keybindings` so that arrow key handling
   // in the autocomplete pop-up takes precedence over Vim/Emacs key bindings
+  autocompletion(),
   autoComplete({
     enabled: options.settings.autoComplete,
     projectFeatures: options.projectFeatures,

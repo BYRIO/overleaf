@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { EditorState } from '@codemirror/state'
+import { EditorState, StateEffect } from '@codemirror/state'
 import useScopeEventEmitter from '../../../shared/hooks/use-scope-event-emitter'
 import useEventListener from '../../../shared/hooks/use-event-listener'
 import useScopeEventListener from '../../../shared/hooks/use-scope-event-listener'
@@ -60,6 +60,10 @@ import { useEditorPropertiesContext } from '@/features/ide-react/context/editor-
 import { SearchQuery } from '@codemirror/search'
 import { beforeChangeDocEffect } from '@/features/source-editor/extensions/before-change-doc'
 import { useActiveOverallTheme } from '@/shared/hooks/use-active-overall-theme'
+import {
+  autocompletion,
+  completionStatus,
+} from '@codemirror/autocomplete'
 
 function useCodeMirrorScope(view: EditorView) {
   const { fileTreeData } = useFileTreeData()
@@ -309,6 +313,7 @@ function useCodeMirrorScope(view: EditorView) {
   useEffect(() => {
     if (currentDocument) {
       debugConsole.log('creating new editor state')
+      console.log('[AutoComplete] openDocName at state init', docNameRef.current)
 
       // Warn any interested extension that the document is about to change,
       // allowing it to perform any necessary actions before creating the new
@@ -338,6 +343,34 @@ function useCodeMirrorScope(view: EditorView) {
         }),
       })
       view.setState(state)
+      // Safety net: if autocomplete is enabled, ensure the autocompletion
+      // extension is present on this view (uses the same module instance).
+      if (settingsRef.current.autoComplete) {
+        const pos = 0
+        const status = completionStatus(state)
+        const sources = view.state.languageDataAt('autocomplete', pos) || []
+        console.log(
+          '[AutoComplete] status after setState',
+          status,
+          'state type',
+          state.constructor?.name,
+          'sources',
+          sources.length
+        )
+        if (status === null) {
+          console.log('[AutoComplete] appending autocompletion extension')
+          view.dispatch({
+            effects: StateEffect.appendConfig.of(autocompletion()),
+          })
+          // log again after append
+          window.setTimeout(() => {
+            const after = completionStatus(view.state)
+            console.log('[AutoComplete] status after append', after)
+          }, 0)
+        }
+      } else {
+        console.log('[AutoComplete] disabled via settings')
+      }
 
       // synchronous config
       view.dispatch(
@@ -370,6 +403,7 @@ function useCodeMirrorScope(view: EditorView) {
     if (openDocName) {
       docNameRef.current = openDocName
 
+      console.log('[Language] effect run, doc', openDocName)
       window.setTimeout(() => {
         view.dispatch(
           setDocName(openDocName),
@@ -379,6 +413,15 @@ function useCodeMirrorScope(view: EditorView) {
             settingsRef.current.syntaxValidation
           )
         )
+        // Inspect language data shortly after dispatch
+        window.setTimeout(() => {
+          const sources = view.state.languageDataAt('autocomplete', 0) || []
+          const langData = view.state.languageDataAt('language', 0) || []
+          console.log(
+            '[Language] post-dispatch languageData',
+            { sources: sources.length, languageEntries: langData }
+          )
+        }, 0)
       })
     }
   }, [view, openDocName])
@@ -427,6 +470,12 @@ function useCodeMirrorScope(view: EditorView) {
   useEffect(() => {
     settingsRef.current.autoComplete = autoComplete
     window.setTimeout(() => {
+      console.log(
+        '[AutoComplete] setAutoComplete dispatch',
+        autoComplete,
+        'pre status',
+        completionStatus(view.state)
+      )
       view.dispatch(
         setAutoComplete({
           enabled: autoComplete,
@@ -434,6 +483,12 @@ function useCodeMirrorScope(view: EditorView) {
           referencesSearchMode: settingsRef.current.referencesSearchMode,
         })
       )
+      window.setTimeout(() => {
+        console.log(
+          '[AutoComplete] post setAutoComplete status',
+          completionStatus(view.state)
+        )
+      }, 0)
     })
   }, [view, autoComplete])
 

@@ -1018,7 +1018,12 @@ module.exports = {
     pdfLogEntriesComponents: [],
     pdfPreviewPromotions: [],
     diagnosticActions: [],
-    sourceEditorCompletionSources: [],
+    sourceEditorCompletionSources: [
+      Path.resolve(
+        __dirname,
+        '../modules/texlab-completion/frontend/texlab-completion-source'
+      ),
+    ],
     sourceEditorSymbolPalette: [],
     sourceEditorToolbarComponents: [
         Path.resolve(
@@ -1046,6 +1051,10 @@ module.exports = {
     offlineModeToolbarButtons: [],
     settingsEntries: [],
     autoCompleteExtensions: [],
+    // Texlab workspace root; override if project data is mounted elsewhere.
+    // Must contain project directories named by projectId. Falls back to tmp.
+    TEXLAB_PROJECT_ROOT: '/var/lib/overleaf/data',
+    TEXLAB_RESPONSE_TIMEOUT_MS: 20000,
     sectionTitleGenerators: [],
     toastGenerators: [
       Path.resolve(

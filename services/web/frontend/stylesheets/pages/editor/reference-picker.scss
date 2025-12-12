@@ -32,14 +32,29 @@
     font-size: var(--font-size-02);
   }
 
-  [role="listbox"] {
-    position: static;
-    margin-top: var(--spacing-02);
+  .reference-picker-search-area {
+    flex: 0 0 auto;
+  }
+
+  .reference-picker-results-area {
     flex: 1 1 auto;
+    min-height: 220px;
     border-top: 1px solid var(--border-divider);
     border-bottom: 1px solid var(--border-divider);
+    padding-top: var(--spacing-02);
+    overflow: hidden;
+  }
+
+  [role="listbox"] {
+    position: static;
+    flex: 1 1 auto;
     max-height: calc(100vh - 260px);
     overflow-y: auto;
+  }
+
+  .reference-picker-empty {
+    padding: var(--spacing-03);
+    color: var(--content-secondary);
   }
 
   /* Each result item is a label/option */

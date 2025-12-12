@@ -70,9 +70,11 @@ const buildExtension = (
   )
 
   if (!languageDescription) {
+    console.log('[Language] no language matched for', docName)
     return []
   }
 
+  console.log('[Language] loading', languageDescription.name, 'for', docName)
   return [
     /**
      * Default to four-space indentation and set the configuration in advance,
@@ -87,6 +89,7 @@ const buildExtension = (
     ViewPlugin.define(view => {
       // load the language asynchronously
       languageDescription.load().then(support => {
+        console.log('[Language] loaded', languageDescription.name, 'for', docName)
         view.dispatch({
           effects: [
             languageConf.reconfigure(support),

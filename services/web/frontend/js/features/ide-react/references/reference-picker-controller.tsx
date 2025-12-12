@@ -19,11 +19,19 @@ export default function ReferencePickerController() {
 
   const onApply = useCallback(
     (selectedKeys: string[]) => {
-      if (!view || from == null || to == null) return
-      // replace the inner content; we expect from and to to be inner positions
+      if (!view) return
+
+      // If no target range, insert a fresh cite command at cursor
+      if (from == null || to == null) {
+        const pos = view.state.selection.main.head
+        const insert = `\\cite{${selectedKeys.join(', ')}}`
+        view.dispatch({ changes: { from: pos, to: pos, insert } })
+        view.focus()
+        return
+      }
+
       const insert = selectedKeys.join(', ')
       view.dispatch({ changes: { from, to, insert } })
-      // Move cursor after the closing brace
       view.focus()
     },
     [view, from, to]

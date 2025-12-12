@@ -68,6 +68,7 @@ import SocketDiagnostics from './Features/SocketDiagnostics/SocketDiagnostics.mj
 import ClsiCacheController from './Features/Compile/ClsiCacheController.mjs'
 import AsyncLocalStorage from './infrastructure/AsyncLocalStorage.js'
 import LLMChatController from './Features/LLMChat/LLMChatController.mjs'
+import TexlabController from './Features/Texlab/TexlabController.mjs'
 
 const { renderUnsupportedBrowserPage, unsupportedBrowserMiddleware } =
   UnsupportedBrowserMiddleware
@@ -585,6 +586,13 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     '/project/:Project_id/llm/chat',
     AuthorizationMiddleware.ensureUserCanReadProject,
     LLMChatController.chat
+  )
+
+  webRouter.post(
+    '/project/:Project_id/texlab/complete',
+    AuthenticationController.requireLogin(),
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    TexlabController.complete
   )
 
   webRouter.get(

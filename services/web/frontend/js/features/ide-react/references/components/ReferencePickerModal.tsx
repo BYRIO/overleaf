@@ -89,6 +89,7 @@ export default function ReferencePickerModal({
   const searchRef = useRef<HTMLInputElement | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
   const footerRef = useRef<HTMLDivElement | null>(null)
+  const hasQuery = query.trim().length > 0
 
   const toggleKey = (key: string) => {
     setSelectedKeys((prev: string[]) => {
@@ -203,11 +204,19 @@ export default function ReferencePickerModal({
 
   // Build list content (avoid complex inline JSX ternary to reduce parser issues)
   const listContent = useMemo(() => {
-    if (!query.trim()) {
-      return null
+    if (!hasQuery) {
+      return (
+        <div className="reference-picker-empty" data-testid="reference-picker-empty">
+          {t('search_references')}
+        </div>
+      )
     }
     if (!results.length) {
-      return <div className="reference-picker-empty" data-testid="reference-picker-empty">{t('references_picker_empty_hint')}</div>
+      return (
+        <div className="reference-picker-empty" data-testid="reference-picker-empty">
+          {t('references_picker_empty_hint')}
+        </div>
+      )
     }
     return results.map((hit: { _source: Bib2JsonEntry }, index: number) => {
       const key = hit._source.EntryKey
@@ -246,11 +255,10 @@ export default function ReferencePickerModal({
             <span className="hit-title">{title}</span>
             <span className="hit-meta">{author}{author && year ? ` — ${year}` : year}{journal ? ` · ${journal}` : ''}</span>
           </div>
-          
         </label>
       )
     })
-  }, [query, results, focusedIndex, selectedKeys, originalKeys, toggleKey, t])
+  }, [hasQuery, results, focusedIndex, selectedKeys, originalKeys, toggleKey, t])
 
   return (
     <OLModal show={show} onHide={onClose} size="lg">
@@ -259,54 +267,61 @@ export default function ReferencePickerModal({
       </OLModalHeader>
       <OLModalBody>
         <div onKeyDown={onKeyDown} className="reference-picker">
-          <div className="search-selectors" style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {[
-              { label: 'Author', value: 'author' },
-              { label: 'Title', value: 'title' },
-              { label: 'Year', value: 'year' },
-              { label: 'Journal', value: 'journal' },
-              { label: 'Key', value: 'EntryKey' },
-            ].map(s => (
-              <label key={s.value} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', whiteSpace: 'nowrap' }}>
-                <input
-                  type="checkbox"
-                  checked={selectedFields.includes(s.value)}
-                  onChange={() => {
-                    setSelectedFields(prev => {
-                      if (prev.includes(s.value)) return prev.filter(v => v !== s.value)
-                      return [...prev, s.value]
-                    })
-                  }}
-                />
-                <span>{s.label}</span>
-              </label>
-            ))}
+          <div className="reference-picker-search-area">
+            <div className="search-selectors" style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {[
+                { label: 'Author', value: 'author' },
+                { label: 'Title', value: 'title' },
+                { label: 'Year', value: 'year' },
+                { label: 'Journal', value: 'journal' },
+                { label: 'Key', value: 'EntryKey' },
+              ].map(s => (
+                <label key={s.value} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedFields.includes(s.value)}
+                    onChange={() => {
+                      setSelectedFields(prev => {
+                        if (prev.includes(s.value)) return prev.filter(v => v !== s.value)
+                        return [...prev, s.value]
+                      })
+                    }}
+                  />
+                  <span>{s.label}</span>
+                </label>
+              ))}
+            </div>
+
+            <input
+              aria-label={t('search_references')}
+              type="search"
+              value={query}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
+              autoFocus
+              ref={searchRef}
+              className="form-control reference-picker-search"
+              data-testid="reference-picker-search"
+              style={{ marginBottom: '8px' }}
+            />
+            <div className="selected-chips" style={{ marginBottom: '8px', alignItems: 'center', display: 'flex', gap: '8px', flexWrap: 'wrap' }} data-testid="reference-picker-selected-chips">
+              {selectedKeys.map((key: string) => (
+                <Tag key={key} closeBtnProps={{ onClick: () => toggleKey(key) }}>
+                  {key}
+                </Tag>
+              ))}
+            </div>
           </div>
 
-          <input
-            aria-label={t('search_references')}
-            type="search"
-            value={query}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
-            autoFocus
-            ref={searchRef}
-            className="form-control reference-picker-search"
-            data-testid="reference-picker-search"
-            style={{ marginBottom: '8px' }}
-          />
-          <div className="selected-chips" style={{ marginBottom: '8px', alignItems: 'center', display: 'flex', gap: '8px', flexWrap: 'wrap' }} data-testid="reference-picker-selected-chips">
-            {selectedKeys.map((key: string) => (
-              <Tag key={key} closeBtnProps={{ onClick: () => toggleKey(key) }}>
-                {key}
-              </Tag>
-            ))}
-          </div>
-
-          {query.trim() ? (
-            <div role="listbox" aria-label={t('reference_search_results')} id="reference-picker-list" data-testid="reference-picker-list">
+          <div className="reference-picker-results-area">
+            <div
+              role="listbox"
+              aria-label={t('reference_search_results')}
+              id="reference-picker-list"
+              data-testid="reference-picker-list"
+            >
               {listContent}
             </div>
-          ) : null}
+          </div>
         </div>
       </OLModalBody>
       <OLModalFooter>

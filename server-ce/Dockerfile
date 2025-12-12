@@ -112,6 +112,11 @@ RUN touch $SITE_MAINTENANCE_FILE
 # Set Environment Variables
 # --------------------------------
 ENV OVERLEAF_CONFIG=/etc/overleaf/settings.js
+ENV TEXLAB_PATH=/usr/local/bin/texlab
+RUN curl -L https://github.com/latex-lsp/texlab/releases/latest/download/texlab-x86_64-linux.tar.gz -o /tmp/texlab.tar.gz \
+ && tar -xzf /tmp/texlab.tar.gz -C /usr/local/bin \
+ && rm /tmp/texlab.tar.gz \
+ && chmod +x /usr/local/bin/texlab
 
 ENV WEB_API_USER="overleaf"
 ENV ADMIN_PRIVILEGE_AVAILABLE="true"

@@ -58,6 +58,13 @@
 - **自助注册限流/域名**：`SELF_REGISTER_RATE_POINTS`（默认 5 次）、`SELF_REGISTER_RATE_DURATION`（默认 3600 秒）、`SELF_REGISTER_RATE_BLOCK_DURATION`（默认 3600 秒）、`SELF_REGISTER_ALLOWED_DOMAINS`（逗号分隔域名列表，例如 `bupt.edu.cn,bupt.cn`，为空则不限制）。
 - **通用受限页提示**：`CONTACT_SUPPORT_TEXT`（如“如需开通访问，请联系 support@example.com”），在 403 受限页显示。
 - **SSH 公钥**：无额外环境变量，用户可在账号设置中自行粘贴公钥（私钥不存储）。
+- **Texlab 补全**：
+  - 路径与参数：`TEXLAB_PATH`（默认 `texlab`）、`TEXLAB_ARGS`（默认空）。
+  - 进程池与超时：`TEXLAB_MAX_PROCS`（默认 4）、`TEXLAB_IDLE_MS`（默认 20 分钟）、`TEXLAB_RESPONSE_TIMEOUT_MS`（默认 20000ms）。
+  - 工作区选择（两者择一）：
+    - `TEXLAB_PROJECT_ROOT`：直接把已有项目根作为工作区，路径为 `<TEXLAB_PROJECT_ROOT>/<projectId>`，适合已挂载/持久化的项目数据。
+    - `TEXLAB_WORKDIR_BASE`：用于生成临时工作区根（默认 `/tmp/texlab-workspaces`），实际工作区 `<base>/<projectId>`，启动时会同步项目内容并按 `TEXLAB_WORKSPACE_TTL_MS`（默认 5 分钟）清理。
+  - 日志：`TEXLAB_LOG_PATH`（默认 `/var/log/overleaf/texlab.log`，失败时回退 `/tmp/texlab.log`）。
 
 ## 已知风险与排查提示
 - LLM 与 gitbackup 的敏感字段（`llmApiKey`、`sshPrivateKey` 等）以明文存入用户文档，需确保数据库/备份的访问安全。
