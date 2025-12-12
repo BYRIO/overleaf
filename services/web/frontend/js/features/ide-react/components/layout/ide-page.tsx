@@ -18,6 +18,7 @@ import EditorSurvey from '../editor-survey'
 import { useFeatureFlag } from '@/shared/context/split-test-context'
 import { useStatusFavicon } from '@/features/ide-react/hooks/use-status-favicon'
 import useThemedPage from '@/shared/hooks/use-themed-page'
+import { LLMChatProvider } from '@/features/llm-chat/hooks/use-llm-chat'
 
 const MainLayoutNew = lazy(
   () => import('@/features/ide-redesign/components/main-layout')
@@ -44,17 +45,17 @@ export default function IdePage() {
     <GlobalAlertsProvider>
       <Alerts />
       <Modals />
-      {newEditor ? (
-        <Suspense fallback={null}>
-          <SettingsModalNew />
-          <MainLayoutNew />
-        </Suspense>
-      ) : (
-        <>
+      <LLMChatProvider>
+        {newEditor ? (
+          <Suspense fallback={null}>
+            <SettingsModalNew />
+            <MainLayoutNew />
+          </Suspense>
+        ) : (
           <EditorLeftMenu />
           <MainLayout />
-        </>
-      )}
+        )}
+      </LLMChatProvider>
       <GlobalToasts />
       {showEditorSurvey && <EditorSurvey />}
     </GlobalAlertsProvider>

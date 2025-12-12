@@ -1,4 +1,14 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import {
+  PropsWithChildren,
+  createContext,
+  Dispatch,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  SetStateAction,
+  useState,
+} from 'react'
 import getMeta from '@/utils/meta'
 
 interface Message {
@@ -20,6 +30,23 @@ interface LLMResponse {
       content: string
     }
   }>
+}
+
+interface LLMChatContextValue {
+  messages: Message[]
+  isLoading: boolean
+  error: string | null
+  sendMessage: (userMessage: string) => Promise<void>
+  stopGeneration: () => void
+  rerunLastMessage: () => void
+  clearMessages: () => void
+  models: LLMModel[]
+  selectedModel: string
+  setSelectedModel: Dispatch<SetStateAction<string>>
+  canRerun: boolean
+  modelsLoaded: boolean
+  hasModels: boolean
+  refreshModels: () => Promise<void>
 }
 
 const SYSTEM_PROMPT = `You are an expert LaTeX debugging assistant and compiler error specialist.
@@ -67,14 +94,16 @@ const SYSTEM_PROMPT = `You are an expert LaTeX debugging assistant and compiler 
 
 Remember: The user is likely frustrated. Be encouraging and clear!`
 
-export const useLLMChat = () => {
+const LLMChatContext = createContext<LLMChatContextValue | null>(null)
+
+export function LLMChatProvider({ children }: PropsWithChildren<{}>) {
   const projectId = getMeta('ol-project_id')
-  
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'system',
-      content: SYSTEM_PROMPT
-    }
+      content: SYSTEM_PROMPT,
+    },
   ])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -91,31 +120,34 @@ export const useLLMChat = () => {
     messagesRef.current = messages
   }, [messages])
 
-  useEffect(() => {
-    async function fetchModels() {
-      try {
-        const response = await fetch(`/project/${projectId}/llm/models`)
-        const data = await response.json()
-        console.log('[LLMChat] Raw models data from backend:', data)
-        setModels(data.models || [])
-        
-        // Find default model or use first available
-        const defaultModel = (data.models || []).find((m: LLMModel) => m.isDefault) || (data.models || [])[0]
-        setSelectedModel(defaultModel?.id || '')
-        
-        console.log('[LLMChat] Available models:', data.models)
-        console.log('[LLMChat] Selected model:', defaultModel?.id)
-      } catch (err) {
-        console.error('[LLMChat] Failed to fetch models:', err)
-        setModels([])
-        setSelectedModel('')
-      } finally {
-        setModelsLoaded(true)
-      }
+  const fetchModels = useCallback(async () => {
+    setModelsLoaded(false)
+    try {
+      const response = await fetch(`/project/${projectId}/llm/models`)
+      const data = await response.json()
+      console.log('[LLMChat] Raw models data from backend:', data)
+      setModels(data.models || [])
+
+      // Find default model or use first available
+      const defaultModel =
+        (data.models || []).find((m: LLMModel) => m.isDefault) ||
+        (data.models || [])[0]
+      setSelectedModel(defaultModel?.id || '')
+
+      console.log('[LLMChat] Available models:', data.models)
+      console.log('[LLMChat] Selected model:', defaultModel?.id)
+    } catch (err) {
+      console.error('[LLMChat] Failed to fetch models:', err)
+      setModels([])
+      setSelectedModel('')
+    } finally {
+      setModelsLoaded(true)
     }
-    
-    fetchModels()
   }, [projectId])
+
+  useEffect(() => {
+    fetchModels()
+  }, [fetchModels])
 
   const sendMessage = useCallback(async (userMessage: string) => {
     console.log('[LLMChat] ===== Starting LLM Chat Request =====')
@@ -188,10 +220,10 @@ export const useLLMChat = () => {
       } else {
         console.error('[LLMChat] ===== ERROR OCCURRED =====')
         console.error('[LLMChat] Error:', err)
-        
+
         const errorMessage = err instanceof Error ? err.message : 'Unknown error'
         setError(errorMessage)
-        
+
         const errorMsg: Message = {
           role: 'assistant',
           content: `❌ Error: ${errorMessage}\n\nPlease check the console for details.`
@@ -236,13 +268,13 @@ export const useLLMChat = () => {
       sendMessage(lastUserMessage)
       return
     }
-    
+
     // Remove the user message and everything after it (including assistant responses)
     const messagesBeforeRerun = currentMessages.slice(0, foundIndex)
     console.log('[LLMChat] Removing', currentMessages.length - foundIndex, 'messages before rerun')
-    
+
     setMessages(messagesBeforeRerun)
-    
+
     // Wait a tick to ensure state is updated, then resend
     setTimeout(() => {
       console.log('[LLMChat] Resending message with current model:', selectedModel)
@@ -267,13 +299,13 @@ export const useLLMChat = () => {
     }
 
     window.addEventListener('llm-chat-send-message', handleSendMessage as EventListener)
-    
+
     return () => {
       window.removeEventListener('llm-chat-send-message', handleSendMessage as EventListener)
     }
   }, [sendMessage])
 
-  return {
+  const value: LLMChatContextValue = {
     messages,
     isLoading,
     error,
@@ -287,5 +319,20 @@ export const useLLMChat = () => {
     canRerun: !!lastUserMessage,
     modelsLoaded,
     hasModels: models.length > 0,
+    refreshModels: fetchModels,
   }
+
+  return (
+    <LLMChatContext.Provider value={value}>
+      {children}
+    </LLMChatContext.Provider>
+  )
+}
+
+export const useLLMChat = () => {
+  const context = useContext(LLMChatContext)
+  if (!context) {
+    throw new Error('useLLMChat must be used within an LLMChatProvider')
+  }
+  return context
 }
