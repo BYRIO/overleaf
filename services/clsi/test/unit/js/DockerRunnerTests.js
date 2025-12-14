@@ -948,9 +948,16 @@ describe('DockerRunner', function () {
     beforeEach(function () {
       this.containerId = 'some_id'
       this.fakeContainer = { kill: sinon.stub().callsArgWith(0, null) }
+      this.destroyContainer = sinon
+        .stub(this.DockerRunner, 'destroyContainer')
+        .callsArgWith(3, null)
       return (this.Docker.prototype.getContainer = sinon
         .stub()
         .returns(this.fakeContainer))
+    })
+
+    afterEach(function () {
+      return this.destroyContainer.restore()
     })
 
     it('should get the container', function (done) {
@@ -972,9 +979,19 @@ describe('DockerRunner', function () {
       })
     })
 
+    it('should destroy the container after killing it', function (done) {
+      return this.DockerRunner.kill(this.containerId, err => {
+        if (err) return done(err)
+        this.destroyContainer
+          .calledWith(this.containerId, null, true)
+          .should.equal(true)
+        return done()
+      })
+    })
+
     it('should not produce an error', function (done) {
       return this.DockerRunner.kill(this.containerId, err => {
-        expect(err).to.equal(undefined)
+        expect(err == null).to.equal(true)
         return done()
       })
     })
@@ -988,14 +1005,21 @@ describe('DockerRunner', function () {
         this.fakeContainer = {
           kill: sinon.stub().callsArgWith(0, this.fakeError),
         }
-        return (this.Docker.prototype.getContainer = sinon
+        this.destroyContainer.resetHistory()
+        this.Docker.prototype.getContainer = sinon
           .stub()
-          .returns(this.fakeContainer))
+          .returns(this.fakeContainer)
+        return this.DockerRunner.destroyContainer
+          .resetBehavior()
+          .callsArgWith(3, null)
       })
 
       return it('should not produce an error', function (done) {
         return this.DockerRunner.kill(this.containerId, err => {
-          expect(err).to.equal(undefined)
+          expect(err == null).to.equal(true)
+          this.destroyContainer
+            .calledWith(this.containerId, null, true)
+            .should.equal(true)
           return done()
         })
       })
@@ -1016,6 +1040,7 @@ describe('DockerRunner', function () {
 
       return it('should produce an error', function (done) {
         return this.DockerRunner.kill(this.containerId, err => {
+          this.destroyContainer.called.should.equal(false)
           expect(err).to.not.equal(undefined)
           expect(err).to.equal(this.fakeError)
           return done()

@@ -154,10 +154,18 @@ const DockerRunner = {
       }
       if (error != null) {
         logger.error({ err: error, containerId }, 'error killing container')
-        callback(error)
-      } else {
-        callback()
+        return callback(error)
       }
+
+      DockerRunner.destroyContainer(containerId, null, true, destroyErr => {
+        if (destroyErr) {
+          logger.error(
+            { err: destroyErr, containerId },
+            'error destroying container after kill'
+          )
+        }
+        callback(destroyErr)
+      })
     })
   },
 
