@@ -14,6 +14,16 @@ import OLFormLabel from '@/shared/components/ol/ol-form-label'
 import OLFormControl from '@/shared/components/ol/ol-form-control'
 import OLFormText from '@/shared/components/ol/ol-form-text'
 
+type LLMModelInput = {
+  id?: string
+  modelName: string
+  apiUrl: string
+  apiKey?: string
+  hasApiKey?: boolean
+  isDefault?: boolean
+  provider?: 'openai_style' | 'anthropic' | 'gemini'
+}
+
 function AccountInfoSection() {
   const { t } = useTranslation()
   const { hasAffiliationsFeature } = getMeta('ol-ExposedSettings')
@@ -40,14 +50,66 @@ function AccountInfoSection() {
 
   // LLM Settings state
   const [useOwnLLMSettings, setUseOwnLLMSettings] = useState(llmSettings?.useOwnSettings || false)
-  const [llmApiKey, setLlmApiKey] = useState('')
-  const [llmModelName, setLlmModelName] = useState(llmSettings?.modelName || '')
-  const [llmApiUrl, setLlmApiUrl] = useState(llmSettings?.apiUrl || '')
-  const [llmHasApiKey, setLlmHasApiKey] = useState(llmSettings?.hasApiKey || false)
+  const [llmModels, setLlmModels] = useState<LLMModelInput[]>(
+    (llmSettings?.models && llmSettings.models.length > 0)
+      ? llmSettings.models.map(m => ({
+          id: m.id,
+          modelName: m.modelName,
+          apiUrl: m.apiUrl,
+          apiKey: '',
+          hasApiKey: m.hasApiKey,
+          isDefault: m.isDefault,
+          provider: m.provider || 'openai_style',
+        }))
+      : [{
+          modelName: llmSettings?.modelName || '',
+          apiUrl: llmSettings?.apiUrl || '',
+          apiKey: '',
+          hasApiKey: llmSettings?.hasApiKey,
+          isDefault: true,
+          provider: 'openai_style',
+        }]
+  )
   const [isCheckingConnection, setIsCheckingConnection] = useState(false)
   const [connectionCheckResult, setConnectionCheckResult] = useState<{ success: boolean, message: string } | null>(null)
   const { isLoading: isLlmSaving, isSuccess: isLlmSuccess, isError: isLlmError, error: llmError, runAsync: runLlmAsync } = useAsync()
   const { isLoading: isSshSaving, isSuccess: isSshSuccess, isError: isSshError, error: sshError, runAsync: runSshAsync } = useAsync()
+
+  const setModelField = (index: number, field: keyof LLMModelInput, value: any) => {
+    setLlmModels(models => {
+      const clone = [...models]
+      clone[index] = { ...clone[index], [field]: value }
+      return clone
+    })
+  }
+
+  const setDefaultModel = (index: number) => {
+    setLlmModels(models =>
+      models.map((m, i) => ({
+        ...m,
+        isDefault: i === index,
+      }))
+    )
+  }
+
+  const addModel = () => {
+    setLlmModels(models => [
+      ...models,
+      { modelName: '', apiUrl: '', apiKey: '', hasApiKey: false, isDefault: models.length === 0, provider: 'openai_style' },
+    ])
+  }
+
+  const removeModel = (index: number) => {
+    setLlmModels(models => {
+      const filtered = models.filter((_, i) => i !== index)
+      if (filtered.length > 0 && !filtered.some(m => m.isDefault)) {
+        filtered[0].isDefault = true
+      }
+      return filtered.length > 0
+        ? filtered
+        : [{ modelName: '', apiUrl: '', apiKey: '', hasApiKey: false, isDefault: true, provider: 'openai_style' }]
+    })
+  }
 
   const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(event.target.value)
@@ -73,14 +135,25 @@ function AccountInfoSection() {
   }
 
   const handleCheckLLMConnection = async () => {
+    const targetModel = llmModels.find(m => m.isDefault) || llmModels[0]
+    if (!targetModel) return
+    if (!targetModel.modelName || !targetModel.apiUrl || (!targetModel.apiKey && !targetModel.hasApiKey)) {
+      setConnectionCheckResult({
+        success: false,
+        message: 'Please provide API URL, API key, and model name for the default model',
+      })
+      return
+    }
+
     setIsCheckingConnection(true)
     setConnectionCheckResult(null)
     try {
       const response = await postJSON('/user/llm-settings/check', {
         body: {
-          apiUrl: llmApiUrl,
-          apiKey: llmApiKey || undefined,
-          modelName: llmModelName,
+          apiUrl: targetModel.apiUrl,
+          apiKey: targetModel.apiKey,
+          modelName: targetModel.modelName,
+          provider: targetModel.provider || 'openai_style',
         },
       })
       setConnectionCheckResult({ success: true, message: response.message || 'Connection successful' })
@@ -92,21 +165,30 @@ function AccountInfoSection() {
   }
 
   const handleSaveLLMSettings = () => {
+    const sanitizedModels = llmModels.map(m => ({
+      id: m.id,
+      modelName: m.modelName,
+      apiUrl: m.apiUrl,
+      apiKey: m.apiKey,
+      isDefault: m.isDefault,
+      provider: m.provider || 'openai_style',
+    }))
+
     runLlmAsync(
       postJSON('/user/llm-settings', {
         body: {
           useOwnLLMSettings,
-          llmApiKey: llmApiKey || undefined,
-          llmModelName,
-          llmApiUrl,
+          llmModels: sanitizedModels,
         },
       })
     ).then(() => {
-      // Update the hasApiKey flag if we just saved a new key
-      if (llmApiKey && llmApiKey.trim() !== '') {
-        setLlmHasApiKey(true)
-        setLlmApiKey('') // Clear the input after successful save
-      }
+      setLlmModels(models =>
+        models.map(m => ({
+          ...m,
+          hasApiKey: m.hasApiKey || !!m.apiKey,
+          apiKey: '', // clear transient key after save
+        }))
+      )
     }).catch(() => {})
   }
 
@@ -115,9 +197,7 @@ function AccountInfoSection() {
 
     // If unchecking, clear all LLM settings and save to backend
     if (!checked) {
-      setLlmApiKey('')
-      setLlmModelName('')
-      setLlmApiUrl('')
+      setLlmModels([{ modelName: '', apiUrl: '', apiKey: '', hasApiKey: false, isDefault: true }])
       setConnectionCheckResult(null)
 
       // Save the cleared settings to the backend
@@ -383,37 +463,90 @@ function AccountInfoSection() {
 
       {useOwnLLMSettings && (
         <>
-          <OLFormGroup controlId="llm-api-key-input">
-            <OLFormLabel>API Key</OLFormLabel>
-            <OLFormControl
-              type="password"
-              value={llmApiKey}
-              onChange={(e) => setLlmApiKey(e.target.value)}
-              placeholder={llmHasApiKey ? '***' : 'Enter API Key'}
-            />
-            {llmHasApiKey && !llmApiKey && (
-              <OLFormText>Existing API key is set. Enter a new one to update.</OLFormText>
-            )}
-          </OLFormGroup>
-
-          <OLFormGroup controlId="llm-model-name-input">
-            <OLFormLabel>Model Name</OLFormLabel>
-            <OLFormControl
-              type="text"
-              value={llmModelName}
-              onChange={(e) => setLlmModelName(e.target.value)}
-              placeholder="e.g., gpt-4, claude-3"
-            />
-          </OLFormGroup>
-
-          <OLFormGroup controlId="llm-api-url-input">
-            <OLFormLabel>API URL</OLFormLabel>
-            <OLFormControl
-              type="text"
-              value={llmApiUrl}
-              onChange={(e) => setLlmApiUrl(e.target.value)}
-              placeholder="e.g., https://api.openai.com/v1"
-            />
+          <OLFormGroup>
+            <OLFormLabel>Personal models</OLFormLabel>
+            {llmModels.map((model, index) => (
+              <div
+                key={model.id || index}
+                style={{
+                  border: '1px solid var(--editor-border-color)',
+                  borderRadius: '6px',
+                  padding: '12px',
+                  marginBottom: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="radio"
+                    name="llm-default-model"
+                    checked={!!model.isDefault}
+                    onChange={() => setDefaultModel(index)}
+                    aria-label="Set as default model"
+                  />
+                  <span style={{ fontWeight: 600 }}>Default</span>
+                </div>
+                <OLFormGroup controlId={`llm-model-name-${index}`}>
+                  <OLFormLabel>Model Name</OLFormLabel>
+                  <OLFormControl
+                    type="text"
+                    value={model.modelName}
+                    onChange={(e) => setModelField(index, 'modelName', e.target.value)}
+                    placeholder="e.g., gpt-4o-mini"
+                  />
+                </OLFormGroup>
+                <OLFormGroup controlId={`llm-api-url-${index}`}>
+                  <OLFormLabel>API URL</OLFormLabel>
+                  <OLFormControl
+                    type="text"
+                    value={model.apiUrl}
+                    onChange={(e) => setModelField(index, 'apiUrl', e.target.value)}
+                    placeholder="https://api.openai.com/v1 (no /chat/completions)"
+                  />
+                  <OLFormText>
+                    For OpenAI-style: base URL only, we append /chat/completions. Anthropic: base like https://api.anthropic.com. Gemini: base like https://generativelanguage.googleapis.com (model goes in path).
+                  </OLFormText>
+                </OLFormGroup>
+                <OLFormGroup controlId={`llm-api-key-${index}`}>
+                  <OLFormLabel>API Key</OLFormLabel>
+                  <OLFormControl
+                    type="password"
+                    value={model.apiKey || ''}
+                    onChange={(e) => setModelField(index, 'apiKey', e.target.value)}
+                    placeholder={model.hasApiKey ? '***' : 'Enter API Key'}
+                  />
+                  {model.hasApiKey && !model.apiKey && (
+                    <OLFormText>Existing API key is set. Enter a new one to update.</OLFormText>
+                  )}
+                </OLFormGroup>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <OLFormGroup controlId={`llm-provider-${index}`} style={{ flex: 1 }}>
+                    <OLFormLabel>Provider</OLFormLabel>
+                    <select
+                      className="form-control"
+                      value={model.provider || 'openai_style'}
+                      onChange={(e) => setModelField(index, 'provider', e.target.value as LLMModelInput['provider'])}
+                    >
+                      <option value="openai_style">OpenAI-compatible</option>
+                      <option value="anthropic">Anthropic (Claude)</option>
+                      <option value="gemini">Google Gemini</option>
+                    </select>
+                  </OLFormGroup>
+                  <OLButton
+                    variant="secondary"
+                    onClick={() => removeModel(index)}
+                    disabled={llmModels.length === 1}
+                  >
+                    Remove
+                  </OLButton>
+                </div>
+              </div>
+            ))}
+            <OLButton variant="secondary" onClick={addModel}>
+              Add model
+            </OLButton>
           </OLFormGroup>
 
           {connectionCheckResult && (
@@ -429,17 +562,21 @@ function AccountInfoSection() {
             <OLButton
               variant="secondary"
               onClick={handleCheckLLMConnection}
-              disabled={isCheckingConnection || !llmApiUrl || (!llmApiKey && !llmHasApiKey) || !llmModelName}
+              disabled={isCheckingConnection || llmModels.some(m => !m.modelName || !m.apiUrl || (!m.apiKey && !m.hasApiKey))}
               isLoading={isCheckingConnection}
               loadingLabel="Checking..."
               style={{ marginRight: '0.5rem' }}
             >
-              Check Connection
+              Check Connection (default model)
             </OLButton>
             <OLButton
               variant="primary"
               onClick={handleSaveLLMSettings}
-              disabled={isLlmSaving || !llmApiUrl || !llmModelName}
+              disabled={
+                isLlmSaving ||
+                llmModels.length === 0 ||
+                llmModels.some(m => !m.modelName || !m.apiUrl || (!m.apiKey && !m.hasApiKey))
+              }
               isLoading={isLlmSaving}
               loadingLabel={t('saving') + '…'}
             >

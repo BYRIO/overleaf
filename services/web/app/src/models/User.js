@@ -235,6 +235,21 @@ const UserSchema = new Schema(
     llmApiKey: { type: String, default: "" },
     llmModelName: { type: String, default: "" },
     llmApiUrl: { type: String, default: "" },
+    llmModels: {
+      type: [
+        {
+          modelName: { type: String, default: '' },
+          apiUrl: { type: String, default: '' },
+          apiKey: { type: String, default: '' },
+          isDefault: { type: Boolean, default: false },
+          provider: { type: String, default: 'openai_style' },
+          // optional per-provider overrides
+          maxTokens: { type: Number },
+          temperature: { type: Number },
+        },
+      ],
+      default: [],
+    },
   },
   { minimize: false }
 )

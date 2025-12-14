@@ -157,6 +157,98 @@
   }
 }
 
+// Setup view
+.llm-chat-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-04);
+  padding: var(--spacing-04);
+  color: var(--llm-chat-text-color);
+}
+
+.llm-chat-setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-03);
+}
+
+.llm-setup-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-01);
+  font-weight: 600;
+  color: var(--llm-chat-text-color);
+
+  input {
+    width: 100%;
+    padding: var(--spacing-02) var(--spacing-03);
+    border-radius: var(--border-radius-base);
+    border: 1px solid var(--llm-chat-new-message-textarea-border);
+    background: var(--llm-chat-new-message-textarea-bg);
+    color: var(--llm-chat-new-message-textarea-color);
+
+    &:focus {
+      outline: none;
+      border-color: var(--border-primary);
+    }
+  }
+
+  .llm-setup-hint {
+    font-size: var(--font-size-01);
+    font-weight: 400;
+    color: var(--llm-chat-instructions-color);
+  }
+}
+
+.llm-setup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-03);
+}
+
+.llm-setup-buttons {
+  display: flex;
+  gap: var(--spacing-02);
+}
+
+.llm-setup-primary {
+  background-color: var(--bg-accent-01);
+  color: var(--white);
+
+  &:hover:not(:disabled) {
+    background-color: var(--bg-accent-02);
+  }
+}
+
+.llm-setup-secondary {
+  background: transparent;
+  color: var(--llm-chat-text-color);
+}
+
+.llm-setup-link {
+  color: var(--link-color);
+  text-decoration: underline;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.llm-setup-error {
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid rgba(255, 0, 0, 0.3);
+  color: var(--content-negative, #c0392b);
+  padding: var(--spacing-02) var(--spacing-03);
+  border-radius: var(--border-radius-base);
+}
+
+.llm-setup-success {
+  background: rgba(46, 204, 113, 0.1);
+  border: 1px solid rgba(46, 204, 113, 0.3);
+  color: var(--content-positive, #2ecc71);
+  padding: var(--spacing-02) var(--spacing-03);
+  border-radius: var(--border-radius-base);
+}
+
 .llm-chat-welcome {
   display: flex;
   flex-direction: column;

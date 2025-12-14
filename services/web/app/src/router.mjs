@@ -314,6 +314,11 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     AuthenticationController.requireLogin(),
     UserLLMSettingsController.checkLLMConnection
   )
+  webRouter.get(
+    '/user/llm-settings',
+    AuthenticationController.requireLogin(),
+    UserLLMSettingsController.getLLMSettings
+  )
   webRouter.post(
     '/user/llm-settings',
     AuthenticationController.requireLogin(),

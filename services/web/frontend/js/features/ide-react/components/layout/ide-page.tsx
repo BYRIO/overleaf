@@ -52,8 +52,10 @@ export default function IdePage() {
             <MainLayoutNew />
           </Suspense>
         ) : (
-          <EditorLeftMenu />
-          <MainLayout />
+          <>
+            <EditorLeftMenu />
+            <MainLayout />
+          </>
         )}
       </LLMChatProvider>
       <GlobalToasts />

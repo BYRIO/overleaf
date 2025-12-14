@@ -31,15 +31,41 @@ const LLMChatPane = React.memo(function LLMChatPane() {
   const [setupApiKey, setSetupApiKey] = useState('')
   const [setupApiUrl, setSetupApiUrl] = useState('')
   const [setupModelName, setSetupModelName] = useState('qwen3-32b')
+  const [setupProvider, setSetupProvider] = useState<'openai_style' | 'anthropic' | 'gemini'>('openai_style')
   const [setupSaving, setSetupSaving] = useState(false)
   const [setupError, setSetupError] = useState<string | null>(null)
   const [setupSuccess, setSetupSuccess] = useState(false)
+  const [setupChecking, setSetupChecking] = useState(false)
+  const [setupCheckMessage, setSetupCheckMessage] = useState<string | null>(null)
+  const [existingUserModels, setExistingUserModels] = useState<
+    Array<{ id?: string; modelName: string; apiUrl: string; isDefault?: boolean; hasApiKey?: boolean; provider?: 'openai_style' | 'anthropic' | 'gemini' }>
+  >([])
+  const [setupLoaded, setSetupLoaded] = useState(false)
+  const showSetupView = modelsLoaded && !hasModels
 
   useEffect(() => {
     if (llmChatIsOpen) {
       setChatOpenedOnce(true)
     }
   }, [llmChatIsOpen])
+
+  useEffect(() => {
+    async function fetchUserLLMSettings() {
+      if (setupLoaded || !showSetupView) return
+      try {
+        const response = await fetch('/user/llm-settings')
+        const data = await response.json()
+        if (Array.isArray(data.models)) {
+          setExistingUserModels(data.models)
+        }
+      } catch (err) {
+        console.error('[LLMChat] Failed to load user LLM settings:', err)
+      } finally {
+        setSetupLoaded(true)
+      }
+    }
+    fetchUserLLMSettings()
+  }, [showSetupView, setupLoaded])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,16 +100,32 @@ const LLMChatPane = React.memo(function LLMChatPane() {
     setSetupSuccess(false)
 
     try {
+      const mergedModels = [
+        ...existingUserModels.map(m => ({
+          id: m.id,
+          modelName: m.modelName,
+          apiUrl: m.apiUrl,
+          provider: m.provider || 'openai_style',
+          isDefault: false,
+        })),
+        {
+          modelName: setupModelName,
+          apiUrl: setupApiUrl,
+          apiKey: setupApiKey,
+          provider: setupProvider,
+          isDefault: true,
+        },
+      ]
+
       await postJSON('/user/llm-settings', {
         body: {
           useOwnLLMSettings: true,
-          llmApiKey: setupApiKey || undefined,
-          llmModelName: setupModelName,
-          llmApiUrl: setupApiUrl,
+          llmModels: mergedModels,
         },
       })
       setSetupSuccess(true)
       setSetupApiKey('')
+      setSetupLoaded(false)
       await refreshModels()
     } catch (err: any) {
       const friendlyMessage =
@@ -96,11 +138,39 @@ const LLMChatPane = React.memo(function LLMChatPane() {
     }
   }
 
+  const handleTestLLMConnection = async () => {
+    if (!setupApiUrl || !setupModelName || !setupApiKey) {
+      setSetupError('Please provide API URL, API key, and model name before testing')
+      return
+    }
+    setSetupChecking(true)
+    setSetupCheckMessage(null)
+    setSetupError(null)
+    try {
+      const response = await postJSON('/user/llm-settings/check', {
+        body: {
+          apiUrl: setupApiUrl,
+          apiKey: setupApiKey,
+          modelName: setupModelName,
+          provider: setupProvider,
+        },
+      })
+      setSetupCheckMessage(response?.message || 'Connection successful')
+    } catch (err: any) {
+      const friendlyMessage =
+        typeof err?.getUserFacingMessage === 'function'
+          ? err.getUserFacingMessage()
+          : err?.message || 'Failed to test connection'
+      setSetupError(friendlyMessage)
+    } finally {
+      setSetupChecking(false)
+    }
+  }
+
   if (!chatOpenedOnce) {
     return null
   }
 
-  const showSetupView = modelsLoaded && !hasModels
   const displayMessages = messages.filter(m => m.role !== 'system')
   const showModelSelector = models.length > 0 && !showSetupView
 
@@ -121,10 +191,23 @@ const LLMChatPane = React.memo(function LLMChatPane() {
                   type="text"
                   value={setupApiUrl}
                   onChange={(e) => setSetupApiUrl(e.target.value)}
-                  placeholder="https://api.openai.com/v1"
+                  placeholder="https://api.openai.com/v1 (no /chat/completions)"
                   required
                   className="llm-chat-input"
                 />
+                <span className="llm-setup-hint">We append /chat/completions automatically.</span>
+              </label>
+              <label className="llm-setup-label">
+                Provider
+                <select
+                  value={setupProvider}
+                  onChange={(e) => setSetupProvider(e.target.value as typeof setupProvider)}
+                  className="llm-chat-input"
+                >
+                  <option value="openai_style">OpenAI-compatible</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="gemini">Google Gemini</option>
+                </select>
               </label>
               <label className="llm-setup-label">
                 API Key
@@ -134,6 +217,7 @@ const LLMChatPane = React.memo(function LLMChatPane() {
                   onChange={(e) => setSetupApiKey(e.target.value)}
                   placeholder="sk-..."
                   className="llm-chat-input"
+                  required
                 />
               </label>
               <label className="llm-setup-label">
@@ -157,14 +241,29 @@ const LLMChatPane = React.memo(function LLMChatPane() {
                   Settings saved. Loading models…
                 </div>
               )}
+              {setupCheckMessage && (
+                <div className="llm-setup-success">
+                  {setupCheckMessage}
+                </div>
+              )}
               <div className="llm-setup-actions">
-                <button
-                  type="submit"
-                  className="llm-action-button"
-                  disabled={setupSaving}
-                >
-                  {setupSaving ? 'Saving…' : 'Save & Enable'}
-                </button>
+                <div className="llm-setup-buttons">
+                  <button
+                    type="button"
+                    className="llm-action-button llm-setup-secondary"
+                    onClick={handleTestLLMConnection}
+                    disabled={setupSaving || setupChecking}
+                  >
+                    {setupChecking ? 'Testing…' : 'Test connection'}
+                  </button>
+                  <button
+                    type="submit"
+                    className="llm-action-button llm-setup-primary"
+                    disabled={setupSaving || setupChecking}
+                  >
+                    {setupSaving ? 'Saving…' : 'Save & enable'}
+                  </button>
+                </div>
                 <a
                   href="/user/settings#llm-settings"
                   className="llm-setup-link"

@@ -148,7 +148,15 @@ async function settingsPage(req, res) {
         useOwnSettings: user.useOwnLLMSettings,
         modelName: user.llmModelName,
         apiUrl: user.llmApiUrl,
-        hasApiKey: Boolean(user.llmApiKey)
+        hasApiKey: Boolean(user.llmApiKey),
+        models: (user.llmModels || []).map(model => ({
+          id: model._id?.toString(),
+          modelName: model.modelName,
+          apiUrl: model.apiUrl,
+          isDefault: Boolean(model.isDefault),
+          hasApiKey: Boolean(model.apiKey),
+          provider: model.provider || 'openai_style',
+        })),
       },
       aiErrorAssistant: {
         enabled: Boolean(user.aiErrorAssistant?.enabled),

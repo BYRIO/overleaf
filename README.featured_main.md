@@ -37,9 +37,10 @@
 - 调试：新增 `debugRoutes` 开关，可输出已注册路由。
 
 ## 7. LLM Chat（ai_assistent）
-- 用户设置：账户设置页新增“LLM Settings”，可勾选“Use my own LLM settings”，填写 API URL、模型名、API Key，支持“Check Connection”和保存。
-- 项目端点：`/project/:Project_id/llm/chat`、`/project/:Project_id/llm/models`（需项目读取权限）。
-- UI：编辑器工具栏新增聊天面板入口、PDF 日志“Ask AI”按钮等；样式位于 `frontend/stylesheets/pages/editor/llm-chat.scss`。
+- 用户设置：账户设置页“LLM Settings”可勾选“Use my own LLM settings”，现支持多条个人模型和供应商预设（OpenAI-compatible / Anthropic / Google Gemini），每条包含 Base URL、Model、API Key、默认标记，可“Check Connection”并保存。
+- 项目端点：`/project/:Project_id/llm/chat`、`/project/:Project_id/llm/models`（需项目读取权限），由后端代理请求，不在前端暴露密钥。
+- UI：编辑器工具栏聊天面板入口、PDF 日志“Ask AI”按钮等；样式位于 `frontend/stylesheets/pages/editor/llm-chat.scss`。无模型时，侧边栏内置快速设置表单（含 provider 选择）。
+- 文档：`doc/llm-providers.md` 说明支持的供应商预设和填写示例。
 - 工具：`tools/llm/list_llm_models.sh` 列出可用模型。
 
 ## 8. Logo 工具（logo-tools）
