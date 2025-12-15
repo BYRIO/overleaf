@@ -5,6 +5,9 @@
 ARG OVERLEAF_BASE_TAG=sharelatex/sharelatex-base:latest
 FROM $OVERLEAF_BASE_TAG
 
+ARG BUILD_COMMIT=unknown
+LABEL org.opencontainers.image.revision=${BUILD_COMMIT}
+
 WORKDIR /overleaf
 
 # Install npm v11.4.2 and patch-package globally before running npm install!

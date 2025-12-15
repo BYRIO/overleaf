@@ -38,6 +38,8 @@ jobs:
         with:
           context: .
           file: server-ce/Dockerfile-base
+          build-args: |
+            BUILD_COMMIT=${{ github.sha }}
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ steps.lc.outputs.owner }}/overleaf-base:latest
@@ -50,6 +52,7 @@ jobs:
           file: server-ce/Dockerfile
           push: true
           build-args: |
+            BUILD_COMMIT=${{ github.sha }}
             OVERLEAF_BASE_TAG=${{ env.REGISTRY }}/${{ steps.lc.outputs.owner }}/overleaf-base:latest
           tags: |
             ${{ env.REGISTRY }}/${{ steps.lc.outputs.owner }}/overleaf:latest

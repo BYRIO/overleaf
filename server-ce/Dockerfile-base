@@ -4,6 +4,9 @@
 
 FROM phusion/baseimage:noble-1.0.2
 
+ARG BUILD_COMMIT=unknown
+LABEL org.opencontainers.image.revision=${BUILD_COMMIT}
+
 # Makes sure LuaTex cache is writable
 # -----------------------------------
 ENV TEXMFVAR=/var/lib/overleaf/tmp/texmf-var
