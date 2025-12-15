@@ -51,6 +51,7 @@ describe('ConnectedUsersManager', function () {
       smembers: sinon.stub(),
       expire: sinon.stub(),
       hset: sinon.stub(),
+      hget: sinon.stub(),
       hgetall: sinon.stub(),
       exec: sinon.stub(),
       multi: () => {
@@ -60,6 +61,9 @@ describe('ConnectedUsersManager', function () {
     this.Metrics = {
       inc: sinon.stub(),
       histogram: sinon.stub(),
+    }
+    this.SessionCleanupNotifier = {
+      cleanupProjectUserSession: sinon.stub(),
     }
 
     this.ConnectedUsersManager = SandboxedModule.require(modulePath, {
@@ -71,6 +75,7 @@ describe('ConnectedUsersManager', function () {
             return this.rClient
           },
         },
+        './SessionCleanupNotifier': this.SessionCleanupNotifier,
       },
     })
     this.client_id = '32132132'
@@ -251,6 +256,7 @@ describe('ConnectedUsersManager', function () {
       )
     })
 
+
     it('should set the cursor position when provided', function (done) {
       return this.ConnectedUsersManager.updateUserPosition(
         this.project_id,
@@ -336,6 +342,7 @@ describe('ConnectedUsersManager', function () {
   describe('markUserAsDisconnected', function () {
     beforeEach(function () {
       this.rClient.exec.yields(null, [1, 0])
+      this.rClient.hget.callsArgWith(2, null, this.user._id)
     })
 
     it('should remove the user from the set', function (done) {
@@ -378,6 +385,48 @@ describe('ConnectedUsersManager', function () {
               24 * 4 * 60 * 60
             )
             .should.equal(true)
+          return done()
+        }
+      )
+    })
+
+    it('should trigger session cleanup when the user leaves the project entirely', function (done) {
+      this.rClient.exec.yields(null, [1, 0])
+      this.rClient.smembers
+        .withArgs(`clients_in_project:${this.project_id}`)
+        .yields(null, [])
+      return this.ConnectedUsersManager.markUserAsDisconnected(
+        this.project_id,
+        this.client_id,
+        err => {
+          if (err) return done(err)
+          expect(
+            this.SessionCleanupNotifier.cleanupProjectUserSession
+          ).to.have.been.calledWith(this.project_id, this.user._id)
+          return done()
+        }
+      )
+    })
+
+    it('should not trigger session cleanup when the user still has clients', function (done) {
+      this.rClient.exec.yields(null, [1, 0])
+      this.rClient.smembers
+        .withArgs(`clients_in_project:${this.project_id}`)
+        .yields(null, ['other-client'])
+      this.rClient.hget
+        .withArgs(
+          `connected_user:${this.project_id}:other-client`,
+          'user_id'
+        )
+        .yields(null, this.user._id)
+      return this.ConnectedUsersManager.markUserAsDisconnected(
+        this.project_id,
+        this.client_id,
+        err => {
+          if (err) return done(err)
+          expect(
+            this.SessionCleanupNotifier.cleanupProjectUserSession
+          ).to.not.have.been.called
           return done()
         }
       )

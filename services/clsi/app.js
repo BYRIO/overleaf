@@ -111,6 +111,10 @@ app.post(
   '/project/:project_id/user/:user_id/compile/stop',
   CompileController.stopCompile
 )
+app.delete(
+  '/project/:project_id/user/:user_id/session',
+  CompileController.clearSession
+)
 app.delete('/project/:project_id/user/:user_id', CompileController.clearCache)
 
 app.get(

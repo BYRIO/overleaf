@@ -596,6 +596,46 @@ const DockerRunner = {
     })
   },
 
+  destroyContainersForCompile(compileName, callback) {
+    const candidateDirs = []
+    const suffix = `/${compileName}`
+    if (Settings.path?.sandboxedCompilesHostDirCompiles) {
+      candidateDirs.push(
+        Path.join(Settings.path.sandboxedCompilesHostDirCompiles, compileName)
+      )
+    }
+    if (Settings.path?.compilesDir) {
+      candidateDirs.push(Path.join(Settings.path.compilesDir, compileName))
+    }
+    dockerode.listContainers({ all: true }, (error, containers) => {
+      if (error != null) {
+        return callback(error)
+      }
+      const jobs = []
+      for (const container of containers) {
+        const mounts = container.Mounts || []
+        const matches = mounts.some(mount => {
+          if (!mount?.Source) return false
+          return (
+            candidateDirs.some(
+              dir =>
+                mount.Source === dir || mount.Source.startsWith(`${dir}/`)
+            ) || mount.Source.endsWith(suffix)
+          )
+        })
+        if (matches) {
+          const plainName =
+            (container.Names && container.Names[0] || '').replace(/^\//, '') ||
+            container.Id
+          jobs.push(cb =>
+            DockerRunner.destroyContainer(plainName, container.Id, true, cb)
+          )
+        }
+      }
+      async.series(jobs, callback)
+    })
+  },
+
   startContainerMonitor() {
     logger.debug(
       { maxAge: DockerRunner.MAX_CONTAINER_AGE },
@@ -653,4 +693,7 @@ module.exports = DockerRunner
 module.exports.promises = {
   run: promisify(DockerRunner.run),
   kill: promisify(DockerRunner.kill),
+  destroyContainersForCompile: promisify(
+    DockerRunner.destroyContainersForCompile
+  ),
 }

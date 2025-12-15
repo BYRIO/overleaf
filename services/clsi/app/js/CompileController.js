@@ -192,6 +192,16 @@ function clearCache(req, res, next) {
   )
 }
 
+function clearSession(req, res, next) {
+  const { project_id: projectId, user_id: userId } = req.params
+  CompileManager.cleanupProjectSession(projectId, userId, function (error) {
+    if (error) {
+      return next(error)
+    }
+    res.sendStatus(204)
+  })
+}
+
 function syncFromCode(req, res, next) {
   const { file, editorId, buildId } = req.query
   const compileFromClsiCache = req.query.compileFromClsiCache === 'true'
@@ -277,6 +287,7 @@ module.exports = {
   compile,
   stopCompile,
   clearCache,
+  clearSession,
   syncFromCode,
   syncFromPdf,
   wordcount,

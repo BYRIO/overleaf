@@ -110,6 +110,9 @@ const settings = {
         '127.0.0.1'
       }:3003`,
     },
+    clsi: {
+      url: `http://${process.env.CLSI_HOST || process.env.WEB_HOST || '127.0.0.1'}:${process.env.CLSI_PORT || 3013}`,
+    },
   },
 
   security: {

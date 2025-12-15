@@ -17,6 +17,7 @@ const TikzManager = require('./TikzManager')
 const LockManager = require('./LockManager')
 const Errors = require('./Errors')
 const CommandRunner = require('./CommandRunner')
+const DockerRunner = require('./DockerRunner')
 const { emitPdfStats } = require('./ContentCacheMetrics')
 const SynctexOutputParser = require('./SynctexOutputParser')
 const {
@@ -421,6 +422,32 @@ async function clearExpiredProjects(maxCacheAgeMs) {
     const hasExpired = age > maxCacheAgeMs
     if (hasExpired) {
       await fsPromises.rm(dir, { force: true, recursive: true })
+    }
+  }
+}
+
+async function cleanupProjectSession(projectId, userId) {
+  const compileName = getCompileName(projectId, userId)
+  const compileDir = getCompileDir(projectId, userId)
+  const outputDir = getOutputDir(projectId, userId)
+
+  try {
+    await LatexRunner.promises.killLatex(compileName)
+  } catch (err) {
+    logger.warn({ err, projectId, userId }, 'error killing latex during cleanup')
+  }
+
+  try {
+    await DockerRunner.promises.destroyContainersForCompile(compileName)
+  } catch (err) {
+    logger.warn({ err, projectId, userId }, 'error destroying containers during cleanup')
+  }
+
+  for (const dir of [compileDir, outputDir]) {
+    try {
+      await fsPromises.rm(dir, { force: true, recursive: true })
+    } catch (err) {
+      logger.warn({ err, dir, projectId, userId }, 'error removing compile artifacts during cleanup')
     }
   }
 }
@@ -855,6 +882,7 @@ module.exports = {
   stopCompile: callbackify(stopCompile),
   clearProject: callbackify(clearProject),
   clearExpiredProjects: callbackify(clearExpiredProjects),
+  cleanupProjectSession: callbackify(cleanupProjectSession),
   syncFromCode: callbackifyMultiResult(syncFromCode, [
     'codePositions',
     'downloadedFromCache',
@@ -869,6 +897,7 @@ module.exports = {
     stopCompile,
     clearProject,
     clearExpiredProjects,
+    cleanupProjectSession,
     syncFromCode,
     syncFromPdf,
     wordcount,

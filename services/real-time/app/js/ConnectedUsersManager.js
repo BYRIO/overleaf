@@ -4,6 +4,7 @@ const logger = require('@overleaf/logger')
 const redis = require('@overleaf/redis-wrapper')
 const OError = require('@overleaf/o-error')
 const Metrics = require('@overleaf/metrics')
+const SessionCleanupNotifier = require('./SessionCleanupNotifier')
 const rclient = redis.createClient(Settings.redis.realtime)
 const Keys = Settings.redis.realtime.key_schema
 
@@ -124,69 +125,102 @@ module.exports = {
 
   markUserAsDisconnected(projectId, clientId, callback) {
     logger.debug({ projectId, clientId }, 'marking user as disconnected')
-    const multi = rclient.multi()
-    multi.srem(Keys.clientsInProject({ project_id: projectId }), clientId)
-    multi.scard(Keys.clientsInProject({ project_id: projectId }))
-    multi.expire(
-      Keys.clientsInProject({ project_id: projectId }),
-      FOUR_DAYS_IN_S
-    )
-    multi.del(
-      Keys.connectedUser({ project_id: projectId, client_id: clientId })
-    )
-    multi.exec(function (err, res) {
-      if (err) {
-        err = new OError('problem marking user as disconnected').withCause(err)
-        return callback(err)
-      }
-      const [, nConnectedClients] = res
-      const status =
-        nConnectedClients === 0
-          ? 'empty'
-          : nConnectedClients === 1
-            ? 'single'
-            : 'multi'
-      Metrics.inc('editing_session_mode', 1, {
-        method: 'disconnect',
-        status,
-      })
-      if (status === 'empty') {
-        rclient.getdel(Keys.projectNotEmptySince({ projectId }), (err, res) => {
-          if (err) {
-            logger.warn(
-              { err, projectId },
-              'could not collect projectNotEmptySince'
-            )
-          } else if (res) {
-            recordProjectNotEmptySinceMetric(res, status)
-          }
-        })
-      } else {
-        // Only populate projectNotEmptySince when more clients remain connected.
-        const nowInSeconds = Math.ceil(Date.now() / 1000).toString()
-        // We can go back to SET GET after upgrading to redis 7.0+
+    rclient.hget(
+      Keys.connectedUser({ project_id: projectId, client_id: clientId }),
+      'user_id',
+      (lookupErr, userId) => {
+        if (lookupErr) {
+          logger.warn(
+            { err: lookupErr, projectId, clientId },
+            'error fetching user_id before disconnect'
+          )
+          userId = undefined
+        }
         const multi = rclient.multi()
-        multi.get(Keys.projectNotEmptySince({ projectId }))
-        multi.set(
-          Keys.projectNotEmptySince({ projectId }),
-          nowInSeconds,
-          'NX',
-          'EX',
-          31 * ONE_DAY_IN_S
+        multi.srem(Keys.clientsInProject({ project_id: projectId }), clientId)
+        multi.scard(Keys.clientsInProject({ project_id: projectId }))
+        multi.expire(
+          Keys.clientsInProject({ project_id: projectId }),
+          FOUR_DAYS_IN_S
         )
-        multi.exec((err, res) => {
+        multi.del(
+          Keys.connectedUser({ project_id: projectId, client_id: clientId })
+        )
+        multi.exec(function (err, res) {
           if (err) {
-            logger.warn(
-              { err, projectId },
-              'could not get/set projectNotEmptySince'
+            err = new OError('problem marking user as disconnected').withCause(
+              err
             )
-          } else if (res[0]) {
-            recordProjectNotEmptySinceMetric(res[0], status)
+            return callback(err)
           }
+          const [, nConnectedClients] = res
+          const status =
+            nConnectedClients === 0
+              ? 'empty'
+              : nConnectedClients === 1
+                ? 'single'
+                : 'multi'
+          Metrics.inc('editing_session_mode', 1, {
+            method: 'disconnect',
+            status,
+          })
+          if (status === 'empty') {
+            rclient.getdel(
+              Keys.projectNotEmptySince({ projectId }),
+              (err, res) => {
+                if (err) {
+                  logger.warn(
+                    { err, projectId },
+                    'could not collect projectNotEmptySince'
+                  )
+                } else if (res) {
+                  recordProjectNotEmptySinceMetric(res, status)
+                }
+              }
+            )
+          } else {
+            // Only populate projectNotEmptySince when more clients remain connected.
+            const nowInSeconds = Math.ceil(Date.now() / 1000).toString()
+            // We can go back to SET GET after upgrading to redis 7.0+
+            const multi = rclient.multi()
+            multi.get(Keys.projectNotEmptySince({ projectId }))
+            multi.set(
+              Keys.projectNotEmptySince({ projectId }),
+              nowInSeconds,
+              'NX',
+              'EX',
+              31 * ONE_DAY_IN_S
+            )
+            multi.exec((err, res) => {
+              if (err) {
+                logger.warn(
+                  { err, projectId },
+                  'could not get/set projectNotEmptySince'
+                )
+              } else if (res[0]) {
+                recordProjectNotEmptySinceMetric(res[0], status)
+              }
+            })
+          }
+          if (!userId) {
+            return callback(null)
+          }
+          module.exports._isUserStillConnected(
+            projectId,
+            userId,
+            isStillConnected => {
+              if (!isStillConnected) {
+                SessionCleanupNotifier.cleanupProjectUserSession(
+                  projectId,
+                  userId
+                )
+              }
+              callback(null)
+            }
+          )
         })
       }
-      callback(null)
-    })
+    )
   },
 
   _getConnectedUser(projectId, clientId, callback) {
@@ -249,6 +283,40 @@ module.exports = {
           )
           callback(null, users)
         })
+      }
+    )
+  },
+
+  _isUserStillConnected(projectId, userId, callback) {
+    rclient.smembers(
+      Keys.clientsInProject({ project_id: projectId }),
+      (err, clients) => {
+        if (err) {
+          logger.warn({ err, projectId }, 'could not list clients for project')
+          return callback(true)
+        }
+        if (!clients || clients.length === 0) {
+          return callback(false)
+        }
+        async.someSeries(
+          clients,
+          (clientId, next) =>
+            rclient.hget(
+              Keys.connectedUser({ project_id: projectId, client_id: clientId }),
+              'user_id',
+              (err, val) => {
+                if (err) {
+                  logger.warn(
+                    { err, projectId, clientId },
+                    'error fetching connected user'
+                  )
+                  return next(false)
+                }
+                next(val === userId)
+              }
+            ),
+          result => callback(result)
+        )
       }
     )
   },
