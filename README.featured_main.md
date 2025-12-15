@@ -14,6 +14,7 @@
   - `bin/pre-pull-texlive-images.sh` 预拉取镜像。
   - `server-ce/health/check-texlive-images.sh` 健康检查，可用作 Docker HEALTHCHECK。
 - 构建：仍用默认 `Makefile` 目标，必要时先 `make pre-pull-texlive-images` 以减少首次启动失败。
+- 运行要点：需要挂载 `/var/run/docker.sock` 以及宿主机编译/输出目录（`SANDBOXED_COMPILES_HOST_DIR_COMPILES`、`SANDBOXED_COMPILES_HOST_DIR_OUTPUT`）；常用变量包含 `SANDBOX_ENABLED`、`SANDBOX_DOCKER_RUNNER`、`SANDBOX_SIBLING_CONTAINERS`、`TEX_LIVE_DOCKER_IMAGE`、`AUTO_PULL_TEXLIVE_IMAGE`、`FAIL_ON_*`。
 
 ## 3. Git 备份（gitbackup）
 - 新镜像：`server-ce/Dockerfile-gitbridge`，`make build-gitbackup` 生成 gitbackup 镜像。
@@ -42,10 +43,28 @@
 - UI：编辑器工具栏聊天面板入口、PDF 日志“Ask AI”按钮等；样式位于 `frontend/stylesheets/pages/editor/llm-chat.scss`。无模型时，侧边栏内置快速设置表单（含 provider 选择）。
 - 文档：`doc/llm-providers.md` 说明支持的供应商预设和填写示例。
 - 工具：`tools/llm/list_llm_models.sh` 列出可用模型。
+- 环境配置：可选全局模型/密钥 `LLM_AVAILABLE_MODELS`、`LLM_MODEL_NAME`、`LLM_API_URL`、`LLM_API_KEY`；否则走用户自填。无网络或未配置时会提示缺模型。
 
 ## 8. Logo 工具（logo-tools）
 - 目录：`logo_tools/` 提供生成 favicon、icons、额外 logo 的脚本与 Python 工具（如 `generate_icons.py`、`create_sw_versions.py`）。
 - 用法：在 repo 根执行对应脚本，按 README 指示生成资源。
+
+## 9. 自助注册与域名白名单
+- 页面：公开入口 `/self-register`，用户输入邮箱后收到激活邮件，设置密码完成注册。
+- 白名单：支持逗号分隔的邮箱域名（例如 `bupt.edu.cn`），不在白名单则拒绝并展示支持提示。
+- 限流：按积分和时长进行频控，超限后阻断并提示。
+- 配置：`SELF_REGISTER_ALLOWED_DOMAINS`、`SELF_REGISTER_RATE_POINTS`、`SELF_REGISTER_RATE_DURATION`、`SELF_REGISTER_RATE_BLOCK_DURATION`、`CONTACT_SUPPORT_TEXT`。
+
+## 10. Texlab 补全与日志增强
+- 功能：后端集成 Texlab LSP，提供代码补全、诊断和符号服务。
+- 运行：可设定进程池大小、超时、空闲清理策略，支持持久化工作区根或临时工作区。
+- 日志：独立 Texlab 日志文件（默认 `/var/log/overleaf/texlab.log`，不可写时回退 `/tmp/texlab.log`），便于定位 LSP 问题。
+- 配置：`TEXLAB_PATH`、`TEXLAB_ARGS`、`TEXLAB_MAX_PROCS`、`TEXLAB_IDLE_MS`、`TEXLAB_RESPONSE_TIMEOUT_MS`、`TEXLAB_WORKSPACE_TTL_MS`、`TEXLAB_WORKDIR_BASE`、`TEXLAB_PROJECT_ROOT`、`TEXLAB_LOG_PATH`。
+
+## 11. BYRIO 品牌与自托管模板
+- Compose 示例：`docker-compose.env.example.yml` 和 `docker-compose.yml` 的默认标题为 `BYRIO OVERLEAF`，示例自助注册白名单为 `bupt.edu.cn`。
+- 文档：`README.env.md` 汇总所有环境变量、默认值与配置教程（SMTP、LDAP、沙箱编译、Texlab、LLM、gitbackup、S3）。
+- 快速启动：复制 compose 示例、设置站点 URL/管理员邮箱/密钥和邮件或 LDAP，再运行 `docker compose -f docker-compose.env.example.yml up -d`。
 
 ## 依赖与构建
 - 新增生产依赖：`katex`、`react-markdown`、`remark-gfm`、`remark-math`、`rehype-katex`、`fuse.js`。
@@ -74,5 +93,13 @@
 - 管理员项目列表已分页，但导出/删除仍属于重操作，建议限制管理员账号使用并考虑后端限流。
 - Gitbackup 构建链路对全局 npm 版本有依赖，若基础镜像中自带 npm 版本冲突可能导致安装失败。
 - Track-changes 仅在模块启用时注册路由，如 404/403 请检查 `moduleImportSequence` 与权限，并可通过 `DEBUG_ROUTES=true` 输出路由用于排查。
+
+## 自托管示例（BYRIO OVERLEAF）
+- 参考 `docker-compose.env.example.yml` 作为一键示例，默认标题 `BYRIO OVERLEAF`，自助注册白名单示例 `bupt.edu.cn`。
+- 全部环境变量与配置说明见 `README.env.md`（SMTP、LDAP、沙箱编译、Texlab、LLM、gitbackup、S3 等）。
+- 快速步骤：
+  1. 复制 compose 示例，至少修改 `OVERLEAF_SITE_URL`、`OVERLEAF_ADMIN_EMAIL`、`OVERLEAF_SESSION_SECRET`/`SESSION_SECRET`、邮件或 LDAP 信息。
+  2. 准备数据目录 `data/overleaf data/mongo data/redis`，如启用沙箱编译或 gitbackup，需挂载 `/var/run/docker.sock`。
+  3. 启动 `docker compose -f docker-compose.env.example.yml up -d`，观察 `docker compose logs -f overleaf` 并打开配置的 `OVERLEAF_SITE_URL`。
 
 如需进一步验证，建议在本分支运行完整测试/构建流程，并在有外网的环境下验证 LLM Chat 与沙箱编译镜像拉取。 

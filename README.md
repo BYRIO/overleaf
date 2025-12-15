@@ -40,6 +40,23 @@ Sign up to the [mailing list](https://mailchi.mp/overleaf.com/community-edition-
 
 We have detailed installation instructions in the [Overleaf Toolkit](https://github.com/overleaf/toolkit/).
 
+For a lightweight self-host setup with Docker Compose, see:
+
+- `docker-compose.env.example.yml` – runnable compose with required volumes and common env vars pre-listed.
+- `README.env.md` – all environment variables, defaults, and configuration walkthrough (SMTP, LDAP, sandboxed compiles, Texlab, LLM, gitbackup, S3).
+
+Quick start (BYRIO OVERLEAF self-host):
+1. Copy `docker-compose.env.example.yml`, set `OVERLEAF_SITE_URL`, `OVERLEAF_ADMIN_EMAIL`, session secrets, and mail/LDAP options as needed.
+2. Prepare data directories (`mkdir -p data/overleaf data/mongo data/redis`) and ensure Docker socket is mounted if enabling sandboxed compiles or gitbackup.
+3. Run `docker compose -f docker-compose.env.example.yml up -d`, then check `docker compose logs -f overleaf` and open the site at the configured `OVERLEAF_SITE_URL`.
+
+Example overrides already shown in compose samples:
+```yaml
+OVERLEAF_APP_NAME: BYRIO OVERLEAF
+OVERLEAF_NAV_TITLE: BYRIO OVERLEAF
+SELF_REGISTER_ALLOWED_DOMAINS: "bupt.edu.cn"
+```
+
 ## Upgrading
 
 If you are upgrading from a previous version of Overleaf, please see the [Release Notes section on the Wiki](https://github.com/overleaf/overleaf/wiki#release-notes) for all of the versions between your current version and the version you are upgrading to.

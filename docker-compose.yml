@@ -28,7 +28,7 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         environment:
 
-            OVERLEAF_APP_NAME: Overleaf Community Edition
+            OVERLEAF_APP_NAME: BYRIO OVERLEAF
 
             OVERLEAF_MONGO_URL: mongodb://mongo/sharelatex
 
@@ -49,7 +49,7 @@ services:
             #VIRTUAL_HOST: 103.112.212.22
 
             # OVERLEAF_SITE_URL: http://overleaf.example.com
-            # OVERLEAF_NAV_TITLE: Overleaf Community Edition
+            # OVERLEAF_NAV_TITLE: BYRIO OVERLEAF
             # OVERLEAF_HEADER_IMAGE_URL: http://example.com/mylogo.png
             # OVERLEAF_ADMIN_EMAIL: support@it.com
 
@@ -111,7 +111,7 @@ services:
             SANDBOXED_COMPILES_HOST_DIR_COMPILES: '/home/user/sharelatex_data/data/compiles'
             SANDBOXED_COMPILES_HOST_DIR_OUTPUT: '/home/user/sharelatex_data/data/output'
             # 自助注册限流与邮箱后缀（按需调整/删除）
-            SELF_REGISTER_ALLOWED_DOMAINS: 'bupt.edu.cn,bupt.cn'
+            SELF_REGISTER_ALLOWED_DOMAINS: 'bupt.edu.cn'
             SELF_REGISTER_RATE_POINTS: '5'
             SELF_REGISTER_RATE_DURATION: '3600'
             SELF_REGISTER_RATE_BLOCK_DURATION: '3600'
