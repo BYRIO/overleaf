@@ -443,11 +443,31 @@ async function cleanupProjectSession(projectId, userId) {
     logger.warn({ err, projectId, userId }, 'error destroying containers during cleanup')
   }
 
-  for (const dir of [compileDir, outputDir]) {
+  const safeDirs = [
+    { dir: compileDir, root: Settings.path.compilesDir },
+    { dir: outputDir, root: Settings.path.outputDir },
+  ]
+
+  for (const { dir, root } of safeDirs) {
+    const normDir = Path.resolve(dir)
+    const normRoot = Path.resolve(root || '')
+    const isUnderRoot =
+      normRoot &&
+      normDir.startsWith(normRoot + Path.sep) &&
+      Path.basename(normDir) === compileName
+
+    if (!isUnderRoot) {
+      logger.warn(
+        { dir, root, projectId, userId },
+        'skipping removal of compile artifacts outside allowed root'
+      )
+      continue
+    }
+
     try {
-      await fsPromises.rm(dir, { force: true, recursive: true })
+      await fsPromises.rm(normDir, { force: true, recursive: true })
     } catch (err) {
-      logger.warn({ err, dir, projectId, userId }, 'error removing compile artifacts during cleanup')
+      logger.warn({ err, dir: normDir, projectId, userId }, 'error removing compile artifacts during cleanup')
     }
   }
 }
