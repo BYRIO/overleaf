@@ -182,7 +182,7 @@ function _buildLatexCommand(mainFile, opts = {}, image) {
 
   command.push(
     latexmkCmd,
-    '-g',
+    '-gt',
     '-cd',
     '-jobname=output',
     '-auxdir=$COMPILE_DIR',
