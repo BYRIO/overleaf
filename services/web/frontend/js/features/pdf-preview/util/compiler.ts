@@ -11,6 +11,8 @@ import { OpenDocuments } from '@/features/ide-react/editor/open-documents'
 import { DocumentContainer } from '@/features/ide-react/editor/document-container'
 import { CompileOptions, CompileResponseData } from '@ol-types/compile'
 import { DeliveryLatencies } from './types'
+import { v4 as uuid } from 'uuid'
+import { getCompileWsClient } from './compile-ws'
 
 const AUTO_COMPILE_MAX_WAIT = 5000
 // We add a 2 second debounce to sending user changes to server if they aren't
@@ -136,6 +138,10 @@ export default class DocumentCompiler {
 
       const rootDocId = this.getRootDocOverrideId()
 
+      const compileId = uuid()
+      const compileWsClient = getCompileWsClient(this.projectId)
+      const compileWsWaiter = compileWsClient.createWaiter(compileId)
+
       const body = {
         rootDoc_id: rootDocId,
         draft: options.draft,
@@ -145,12 +151,43 @@ export default class DocumentCompiler {
         incrementalCompilesEnabled: !this.error,
         stopOnFirstError: options.stopOnFirstError,
         editorId: EDITOR_SESSION_ID,
+        compileId,
       }
 
-      const data: CompileResponseData = await postJSON(
-        `/project/${this.projectId}/compile?${params}`,
-        { body, signal: this.signal }
-      )
+      const compileQuery: Record<string, string> = {}
+      if (params.has('auto_compile')) {
+        compileQuery.auto_compile = 'true'
+      }
+      if (params.has('enable_pdf_caching')) {
+        compileQuery.enable_pdf_caching = 'true'
+      }
+      if (params.has('file_line_errors')) {
+        compileQuery.file_line_errors = 'true'
+      }
+
+      let data: CompileResponseData
+      try {
+        const sent = await compileWsClient.sendCompile({
+          type: 'compile',
+          projectId: this.projectId,
+          compileId,
+          body,
+          query: compileQuery,
+          referer: window.location.href,
+        })
+        if (!sent) {
+          compileWsWaiter.cancel()
+          data = await postJSON(`/project/${this.projectId}/compile?${params}`, {
+            body,
+            signal: this.signal,
+          })
+        } else {
+          data = await compileWsWaiter.promise
+        }
+      } catch (error) {
+        compileWsWaiter.cancel()
+        throw error
+      }
 
       const compileTimeClientE2E = Math.ceil(performance.now() - t0)
       const { deliveryLatencies, firstRenderDone } = trackPdfDownload(

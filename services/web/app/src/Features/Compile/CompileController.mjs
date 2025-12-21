@@ -1,4 +1,3 @@
-import { URL } from 'node:url'
 import { pipeline } from 'node:stream/promises'
 import { Cookie } from 'tough-cookie'
 import OError from '@overleaf/o-error'
@@ -14,90 +13,29 @@ import { RateLimiter } from '../../infrastructure/RateLimiter.js'
 import Validation from '../../infrastructure/Validation.js'
 import ClsiCookieManagerFactory from './ClsiCookieManager.mjs'
 import Path from 'node:path'
-import AnalyticsManager from '../Analytics/AnalyticsManager.mjs'
-import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
 import { expressify } from '@overleaf/promise-utils'
 import {
   fetchStreamWithResponse,
   RequestFailedError,
 } from '@overleaf/fetch-utils'
 import Features from '../../infrastructure/Features.js'
+import { emitCompileResult } from './CompileWebsocketManager.mjs'
+import {
+  COMPILE_TIMEOUT_MS,
+  compileProject,
+  startCompileHeartbeat,
+} from './CompileRunner.mjs'
+import { getFileUrl } from './CompileUrl.mjs'
 
 const { z, zz, validateReq } = Validation
 const ClsiCookieManager = ClsiCookieManagerFactory(
   Settings.apis.clsi?.backendGroupName
 )
 
-const COMPILE_TIMEOUT_MS = 10 * 60 * 1000
-
 const pdfDownloadRateLimiter = new RateLimiter('full-pdf-download', {
   points: 1000,
   duration: 60 * 60,
 })
-
-function getOutputFilesArchiveSpecification(projectId, userId, buildId) {
-  const fileName = 'output.zip'
-  return {
-    path: fileName,
-    url: _CompileController._getFileUrl(projectId, userId, buildId, fileName),
-    type: 'zip',
-  }
-}
-
-async function getPdfCachingMinChunkSize(req, res) {
-  const { variant } = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'pdf-caching-min-chunk-size'
-  )
-  if (variant === 'default') {
-    return 1_000_000
-  }
-  return parseInt(variant, 10)
-}
-
-async function _getSplitTestOptions(req, res) {
-  // Use the query flags from the editor request for overriding the split test.
-  let query = {}
-  try {
-    const u = new URL(req.headers.referer || req.url, Settings.siteUrl)
-    query = Object.fromEntries(u.searchParams.entries())
-  } catch (e) {}
-  const editorReq = { ...req, query }
-
-  const pdfDownloadDomain = Settings.pdfDownloadDomain
-
-  if (!req.query.enable_pdf_caching) {
-    // The frontend does not want to do pdf caching.
-    return {
-      pdfDownloadDomain,
-      enablePdfCaching: false,
-    }
-  }
-
-  // Double check with the latest split test assignment.
-  // We may need to turn off the feature on a short notice, without requiring
-  //  all users to reload their editor page to disable the feature.
-  const { variant } = await SplitTestHandler.promises.getAssignment(
-    editorReq,
-    res,
-    'pdf-caching-mode'
-  )
-  const enablePdfCaching = variant === 'enabled'
-  if (!enablePdfCaching) {
-    // Skip the lookup of the chunk size when caching is not enabled.
-    return {
-      pdfDownloadDomain,
-      enablePdfCaching: false,
-    }
-  }
-  const pdfCachingMinChunkSize = await getPdfCachingMinChunkSize(editorReq, res)
-  return {
-    pdfDownloadDomain,
-    enablePdfCaching,
-    pdfCachingMinChunkSize,
-  }
-}
 
 async function _syncTeX(req, res, direction, validatedOptions) {
   const projectId = req.params.Project_id
@@ -145,132 +83,11 @@ const wordCountSchema = z.object({
 
 const _CompileController = {
   async compile(req, res) {
-    res.setTimeout(COMPILE_TIMEOUT_MS)
     const projectId = req.params.Project_id
-    const isAutoCompile = !!req.query.auto_compile
-    const fileLineErrors = !!req.query.file_line_errors
-    const stopOnFirstError = !!req.body.stopOnFirstError
-    const userId = SessionManager.getLoggedInUserId(req.session)
-    const options = {
-      isAutoCompile,
-      fileLineErrors,
-      stopOnFirstError,
-      editorId: req.body.editorId,
-    }
-
-    if (req.body.rootDoc_id) {
-      options.rootDoc_id = req.body.rootDoc_id
-    } else if (
-      req.body.settingsOverride &&
-      req.body.settingsOverride.rootDoc_id
-    ) {
-      // Can be removed after deploy
-      options.rootDoc_id = req.body.settingsOverride.rootDoc_id
-    }
-    if (req.body.compiler) {
-      options.compiler = req.body.compiler
-    }
-    if (req.body.draft) {
-      options.draft = req.body.draft
-    }
-    if (['validate', 'error', 'silent'].includes(req.body.check)) {
-      options.check = req.body.check
-    }
-    if (req.body.incrementalCompilesEnabled) {
-      options.incrementalCompilesEnabled = true
-    }
-
-    let { enablePdfCaching, pdfCachingMinChunkSize, pdfDownloadDomain } =
-      await _getSplitTestOptions(req, res)
-    if (Features.hasFeature('saas')) {
-      options.compileFromClsiCache = true
-      options.populateClsiCache = true
-    }
-    options.enablePdfCaching = enablePdfCaching
-    if (enablePdfCaching) {
-      options.pdfCachingMinChunkSize = pdfCachingMinChunkSize
-    }
-
-    const {
-      status,
-      outputFiles,
-      clsiServerId,
-      limits,
-      validationProblems,
-      stats,
-      timings,
-      outputUrlPrefix,
-      buildId,
-      clsiCacheShard,
-      adminHint,
-    } = await CompileManager.promises
-      .compile(projectId, userId, options)
-      .catch(error => {
-        Metrics.inc('compile-error')
-        throw error
-      })
-
-    Metrics.inc('compile-status', 1, { status })
-    if (status === 'unavailable') {
-      logger.warn({ projectId, adminHint }, 'compile backend unavailable')
-    }
-    if (pdfDownloadDomain && outputUrlPrefix) {
-      pdfDownloadDomain += outputUrlPrefix
-    }
-
-    if (
-      limits &&
-      SplitTestHandler.getPercentile(
-        AnalyticsManager.getIdsFromSession(req.session).analyticsId,
-        'compile-result-backend',
-        'release'
-      ) === 1
-    ) {
-      // For a compile request to be sent to clsi we need limits.
-      // If we get here without having the limits object populated, it is
-      //  a reasonable assumption to make that nothing was compiled.
-      // We need to know the limits in order to make use of the events.
-      AnalyticsManager.recordEventForSession(
-        req.session,
-        'compile-result-backend',
-        {
-          projectId,
-          ownerAnalyticsId: limits.ownerAnalyticsId,
-          status,
-          compileTime: timings?.compileE2E,
-          timeout: limits.timeout,
-          server: clsiServerId?.includes('-c4d-') ? 'faster' : 'normal',
-          clsiServerId,
-          isAutoCompile,
-          isInitialCompile: stats?.isInitialCompile === 1,
-          restoredClsiCache: stats?.restoredClsiCache === 1,
-          stopOnFirstError,
-          isDraftMode: !!options.draft,
-        }
-      )
-    }
-
-    const outputFilesArchive = buildId
-      ? getOutputFilesArchiveSpecification(projectId, userId, buildId)
-      : null
-
-    const baseRes = {
-      status,
-      outputFiles,
-      outputFilesArchive,
-      compileGroup: limits?.compileGroup,
-      clsiServerId,
-      clsiCacheShard,
-      validationProblems,
-      stats,
-      timings,
-      outputUrlPrefix,
-      pdfDownloadDomain,
-      pdfCachingMinChunkSize,
-    }
-    if (status === 'unavailable' && adminHint) {
-      baseRes.adminHint = adminHint
-    }
+    const { baseRes, userId, sessionId } = await compileProject(req, res, {
+      sendHeartbeat: true,
+    })
+    emitCompileResult(projectId, userId, sessionId, baseRes)
     res.json(baseRes)
   },
 
@@ -303,12 +120,19 @@ const _CompileController = {
     options.compileBackendClass = Settings.apis.clsi.submissionBackendClass
     options.timeout =
       req.body?.timeout || Settings.defaultFeatures.compileTimeout
-    const { status, outputFiles, clsiServerId, validationProblems } =
-      await ClsiManager.promises.sendExternalRequest(
+    const stopHeartbeat = startCompileHeartbeat(res)
+    let compileResult
+    try {
+      compileResult = await ClsiManager.promises.sendExternalRequest(
         submissionId,
         req.body,
         options
       )
+    } finally {
+      stopHeartbeat()
+    }
+    const { status, outputFiles, clsiServerId, validationProblems } =
+      compileResult
     res.json({
       status,
       outputFiles,
@@ -366,7 +190,7 @@ const _CompileController = {
     } else {
       const userId = CompileController._getUserIdForCompile(req)
 
-      const url = _CompileController._getFileUrl(
+      const url = getFileUrl(
         projectId,
         userId,
         req.params.build_id,
@@ -443,7 +267,7 @@ const _CompileController = {
 
     const qs = {}
 
-    const url = _CompileController._getFileUrl(
+    const url = getFileUrl(
       projectId,
       userId,
       req.params.build_id,
@@ -461,7 +285,7 @@ const _CompileController = {
 
   async getFileFromClsiWithoutUser(req, res) {
     const submissionId = req.params.submission_id
-    const url = _CompileController._getFileUrl(
+    const url = getFileUrl(
       submissionId,
       null,
       req.params.build_id,
@@ -483,21 +307,6 @@ const _CompileController = {
       req,
       res
     )
-  },
-
-  // compute a GET file url for a given project, user (optional), build (optional) and file
-  _getFileUrl(projectId, userId, buildId, file) {
-    let url
-    if (userId != null && buildId != null) {
-      url = `/project/${projectId}/user/${userId}/build/${buildId}/output/${file}`
-    } else if (userId != null) {
-      url = `/project/${projectId}/user/${userId}/output/${file}`
-    } else if (buildId != null) {
-      url = `/project/${projectId}/build/${buildId}/output/${file}`
-    } else {
-      url = `/project/${projectId}/output/${file}`
-    }
-    return url
   },
 
   async proxySyncPdf(req, res) {
@@ -723,7 +532,6 @@ const CompileController = {
   wordCount: expressify(_CompileController.wordCount),
 
   _getSafeProjectName: _CompileController._getSafeProjectName,
-  _getSplitTestOptions,
   _getUserIdForCompile: _CompileController._getUserIdForCompile,
   _proxyToClsi: _CompileController._proxyToClsi,
   _proxyToClsiWithLimits: _CompileController._proxyToClsiWithLimits,

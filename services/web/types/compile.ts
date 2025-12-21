@@ -63,6 +63,7 @@ export type CompileResponseData = {
   fromCache?: boolean
   status: string
   outputFiles: CompileOutputFile[]
+  compileId?: string
   compileGroup?: string
   clsiServerId?: string
   clsiCacheShard?: string

@@ -38,6 +38,7 @@ import http from 'node:http'
 import { fileURLToPath } from 'node:url'
 import serveStaticWrapper from './ServeStaticWrapper.mjs'
 import { handleValidationError } from '@overleaf/validation-tools'
+import { attachCompileWebsocketServer } from '../Features/Compile/CompileWebsocketManager.mjs'
 
 const { hasAdminAccess } = AdminAuthorizationHelper
 const sessionsRedisClient = UserSessionsRedis.client()
@@ -351,6 +352,7 @@ if (Settings.csp && Settings.csp.enabled) {
 
 logger.debug('creating HTTP server'.yellow)
 const server = http.createServer(app)
+attachCompileWebsocketServer(server, sessionStore, sessionSecrets)
 
 // provide settings for separate web and api processes
 if (Settings.enabledServices.includes('api')) {
