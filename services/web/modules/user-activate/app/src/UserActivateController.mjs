@@ -4,6 +4,7 @@ import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
 import UserRegistrationHandler from '../../../../app/src/Features/User/UserRegistrationHandler.mjs'
 import UserDeleter from '../../../../app/src/Features/User/UserDeleter.mjs'
 import UserUpdater from '../../../../app/src/Features/User/UserUpdater.mjs'
+import { User } from '../../../../app/src/models/User.js'
 import ErrorController from '../../../../app/src/Features/Errors/ErrorController.mjs'
 import { expressify } from '@overleaf/promise-utils'
 import settings from '@overleaf/settings'
@@ -15,28 +16,104 @@ const allowedDomains = (process.env.SELF_REGISTER_ALLOWED_DOMAINS || '')
   .map(d => d.trim().toLowerCase())
   .filter(Boolean)
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function getUserSort(sort, direction) {
+  const sortDirection = direction === 'desc' ? -1 : 1
+  const sortMap = {
+    lastName: { last_name: sortDirection, first_name: sortDirection, email: 1 },
+    firstName: { first_name: sortDirection, last_name: sortDirection, email: 1 },
+    email: { email: sortDirection },
+    signUpDate: { signUpDate: sortDirection },
+    lastLoggedIn: { lastLoggedIn: sortDirection },
+    lastActive: { lastActive: sortDirection },
+    loginCount: { loginCount: sortDirection },
+    lastLoginIp: { lastLoginIp: sortDirection },
+    suspended: { suspended: sortDirection },
+    isAdmin: { isAdmin: sortDirection },
+  }
+  return sortMap[sort] || sortMap.lastName
+}
+
 async function registerNewUser(req, res, next) {
   try {
-    // Fetch users with isAdmin field
-    const users = await UserGetter.promises.getUsers(
-      {},
-      { _id: 1, first_name: 1, last_name: 1, email: 1, isAdmin: 1 }
+    res.render(
+      Path.resolve(__dirname, '../views/user/register')
     )
-    // Prepare user data for client-side rendering
+  } catch (err) {
+    next(err)
+  }
+}
+
+async function listUsers(req, res, next) {
+  try {
+    const page = Math.max(parseInt(req.query.page || '1', 10), 1)
+    const perPage = Math.min(
+      Math.max(parseInt(req.query.perPage || '20', 10), 1),
+      100
+    )
+    const search = (req.query.search || '').toString().trim()
+    const sort = (req.query.sort || 'lastName').toString()
+    const direction = (req.query.direction || 'asc').toString()
+
+    const query = {}
+    if (search) {
+      const escaped = escapeRegex(search)
+      const regex = new RegExp(escaped, 'i')
+      query.$or = [
+        { email: regex },
+        { first_name: regex },
+        { last_name: regex },
+      ]
+    }
+
+    const total = await User.countDocuments(query).exec()
+    const totalPages = Math.max(1, Math.ceil(total / perPage))
+    const safePage = Math.min(page, totalPages)
+
+    const users = await User.find(query)
+      .select({
+        _id: 1,
+        first_name: 1,
+        last_name: 1,
+        email: 1,
+        isAdmin: 1,
+        signUpDate: 1,
+        lastLoggedIn: 1,
+        lastActive: 1,
+        loginCount: 1,
+        lastLoginIp: 1,
+        suspended: 1,
+      })
+      .sort(getUserSort(sort, direction))
+      .skip((safePage - 1) * perPage)
+      .limit(perPage)
+      .lean()
+      .exec()
+
     const userData = users.map(user => ({
       id: user._id.toString(),
       lastName: user.last_name || 'N/A',
       firstName: user.first_name || 'N/A',
       email: user.email || 'N/A',
       isAdmin: user.isAdmin || false,
+      signUpDate: user.signUpDate || null,
+      lastLoggedIn: user.lastLoggedIn || null,
+      lastActive: user.lastActive || null,
+      loginCount: user.loginCount || 0,
+      lastLoginIp: user.lastLoginIp || null,
+      suspended: user.suspended || false,
     }))
-    // Render the React layout and pass the user list
-    res.render(
-      Path.resolve(__dirname, '../views/user/register'),
-      {
-        userList: JSON.stringify(userData),
-      }
-    )
+
+    res.json({
+      users: userData,
+      total,
+      page: safePage,
+      perPage,
+      totalPages,
+    })
   } catch (err) {
     next(err)
   }
@@ -249,6 +326,7 @@ async function activateAccountPage(req, res, next) {
 
 export default {
   registerNewUser: expressify(registerNewUser),
+  listUsers: expressify(listUsers),
   register: expressify(register),
   toggleAdminStatus: expressify(toggleAdminStatus),
   deleteUser: expressify(deleteUser),

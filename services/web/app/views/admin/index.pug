@@ -16,14 +16,28 @@ block content
 										+bookmarkable-tabset-header('system-messages', 'System Messages', true)
 										+bookmarkable-tabset-header('open-sockets', 'Open Sockets')
 										+bookmarkable-tabset-header('open-close-editor', 'Open/Close Editor')
+										+bookmarkable-tabset-header('audit-logs', 'Audit Logs')
 										if hasFeature('saas')
 											+bookmarkable-tabset-header('tpds', 'TPDS/Dropbox Management')
 
 								.tab-content
 									.tab-pane.active(role='tabpanel' id='system-messages')
-										each message in systemMessages
+										if systemMessages && systemMessages.length > 0
 											ul.system-messages
-												li.system-message.row-spaced #{message.content}
+												each message in systemMessages
+													li.system-message.row-spaced
+														span #{message.content}
+														|  
+														form(
+															method='post'
+															action=`/admin/messages/${message._id}/delete`
+															onsubmit='return confirm("Delete this message?")'
+															style='display:inline'
+														)
+															input(name='_csrf' type='hidden' value=csrfToken)
+															button.btn.btn-link.btn-sm(type='submit') Delete
+										else
+											p.text-muted No system messages.
 										hr
 										form(method='post' action='/admin/messages')
 											input(name='_csrf' type='hidden' value=csrfToken)
@@ -108,6 +122,256 @@ block content
 													input(name='_csrf' type='hidden' value=csrfToken)
 													button.btn.btn-danger(type='submit') Reopen Editor
 												p.small Will reopen the editor after closing.
+
+									.tab-pane(role='tabpanel' id='audit-logs')
+										.row-spaced
+											h3 Audit Logs
+											p.text-muted View audit log entries for users, projects, and groups.
+										form#audit-log-form.row
+											.col-sm-2
+												.form-group
+													label.form-label(for='audit-log-type') Type
+													select#audit-log-type.form-control(name='type')
+														option(value='user') User
+														option(value='project') Project
+														option(value='group') Group
+											.col-sm-3
+												.form-group
+													label.form-label(for='audit-log-target') Target ID
+													input#audit-log-target.form-control(
+														type='text'
+														name='targetId'
+														placeholder='User/Project/Group ID'
+													)
+											.col-sm-2
+												.form-group
+													label.form-label(for='audit-log-initiator') Initiator ID
+													input#audit-log-initiator.form-control(
+														type='text'
+														name='initiatorId'
+														placeholder='Admin/User ID'
+													)
+											.col-sm-2
+												.form-group
+													label.form-label(for='audit-log-operation') Operation
+													input#audit-log-operation.form-control(
+														type='text'
+														name='operation'
+														placeholder='Filter by operation'
+													)
+											.col-sm-2
+												.form-group
+													label.form-label(for='audit-log-ip') IP Address
+													input#audit-log-ip.form-control(
+														type='text'
+														name='ipAddress'
+														placeholder='IP'
+													)
+											.col-sm-1
+												.form-group
+													label.form-label(for='audit-log-per-page') Per Page
+													select#audit-log-per-page.form-control(name='perPage')
+														option(value='20') 20
+														option(value='50' selected) 50
+														option(value='100') 100
+														option(value='200') 200
+											.col-sm-12
+												.form-group
+													button.btn.btn-primary(type='submit') Load Logs
+										.row-spaced
+											#audit-log-error.alert.alert-danger(role='alert' style='display:none')
+											#audit-log-loading.text-muted(style='display:none') Loading logs...
+										.table-responsive
+											table#audit-log-table.table.table-striped.table-hover
+												thead
+													tr
+														th Timestamp
+														th Operation
+														th Target ID
+														th Initiator ID
+														th IP Address
+														th Subscription ID
+														th Info
+												tbody
+										.row-spaced
+											#audit-log-empty.text-muted(style='display:none') No audit logs found.
+											#audit-log-pagination(style='display:flex;align-items:center;gap:8px;flex-wrap:wrap')
+												button#audit-log-prev.btn.btn-default.btn-sm(type='button' disabled) Previous
+												span#audit-log-page-info.text-muted Page 1 / 1 (Total 0)
+												button#audit-log-next.btn.btn-default.btn-sm(type='button' disabled) Next
+										script.
+											(function () {
+												const form = document.getElementById('audit-log-form')
+												if (!form) return
+
+												const tableBody = document.querySelector('#audit-log-table tbody')
+												const errorEl = document.getElementById('audit-log-error')
+												const loadingEl = document.getElementById('audit-log-loading')
+												const emptyEl = document.getElementById('audit-log-empty')
+												const pageInfo = document.getElementById('audit-log-page-info')
+												const prevBtn = document.getElementById('audit-log-prev')
+												const nextBtn = document.getElementById('audit-log-next')
+
+												let currentPage = 1
+												let totalPages = 1
+												let totalCount = 0
+
+												function setError(message) {
+													if (!errorEl) return
+													if (message) {
+														errorEl.textContent = message
+														errorEl.style.display = 'block'
+													} else {
+														errorEl.textContent = ''
+														errorEl.style.display = 'none'
+													}
+												}
+
+												function setLoading(isLoading) {
+													if (!loadingEl) return
+													loadingEl.style.display = isLoading ? 'block' : 'none'
+												}
+
+												function setEmpty(isEmpty) {
+													if (!emptyEl) return
+													emptyEl.style.display = isEmpty ? 'block' : 'none'
+												}
+
+												function formatTimestamp(value) {
+													if (!value) return '-'
+													const date = new Date(value)
+													if (Number.isNaN(date.getTime())) return '-'
+													return date.toLocaleString()
+												}
+
+												function truncate(value, maxLength) {
+													if (!value) return '-'
+													if (value.length <= maxLength) return value
+													return value.slice(0, maxLength) + '...'
+												}
+
+												function updatePagination() {
+													if (pageInfo) {
+														pageInfo.textContent = `Page ${currentPage} / ${totalPages} (Total ${totalCount})`
+													}
+													if (prevBtn) {
+														prevBtn.disabled = currentPage <= 1
+													}
+													if (nextBtn) {
+														nextBtn.disabled = currentPage >= totalPages
+													}
+												}
+
+												function renderLogs(logs) {
+													tableBody.textContent = ''
+													if (!logs || logs.length === 0) {
+														setEmpty(true)
+														return
+													}
+													setEmpty(false)
+													const fragment = document.createDocumentFragment()
+													logs.forEach(log => {
+														const row = document.createElement('tr')
+
+														const cells = [
+															formatTimestamp(log.timestamp),
+															log.operation || '-',
+															log.targetId || '-',
+															log.initiatorId || '-',
+															log.ipAddress || '-',
+															log.managedSubscriptionId || '-',
+															log.info ? JSON.stringify(log.info) : '-',
+														]
+
+														cells.forEach((value, index) => {
+															const cell = document.createElement('td')
+															const displayValue = index === 6 ? truncate(value, 160) : value
+															cell.textContent = displayValue
+															if (index === 6 && value && value.length > 160) {
+																cell.title = value
+															}
+															row.appendChild(cell)
+														})
+
+														fragment.appendChild(row)
+													})
+													tableBody.appendChild(fragment)
+												}
+
+												async function fetchLogs(page) {
+													setLoading(true)
+													setError(null)
+
+													const formData = new FormData(form)
+													const params = new URLSearchParams()
+													params.set('page', String(page || 1))
+													params.set('perPage', formData.get('perPage') || '50')
+													params.set('type', formData.get('type') || 'user')
+
+													const targetId = (formData.get('targetId') || '').toString().trim()
+													const initiatorId = (formData.get('initiatorId') || '').toString().trim()
+													const operation = (formData.get('operation') || '').toString().trim()
+													const ipAddress = (formData.get('ipAddress') || '').toString().trim()
+
+													if (targetId) params.set('targetId', targetId)
+													if (initiatorId) params.set('initiatorId', initiatorId)
+													if (operation) params.set('operation', operation)
+													if (ipAddress) params.set('ipAddress', ipAddress)
+
+													try {
+														const response = await fetch(`/admin/audit-logs?${params.toString()}`)
+														if (!response.ok) {
+															let message = 'Failed to fetch audit logs'
+															try {
+																const errorData = await response.json()
+																message = errorData.error || errorData.message || message
+															} catch (err) {
+																// ignore parse failures
+															}
+															throw new Error(message)
+														}
+
+														const data = await response.json()
+														currentPage = data.page || 1
+														totalPages = data.totalPages || 1
+														totalCount = data.total || 0
+														renderLogs(data.logs)
+														updatePagination()
+													} catch (err) {
+														setError(err.message || 'Failed to fetch audit logs')
+														renderLogs([])
+														currentPage = 1
+														totalPages = 1
+														totalCount = 0
+														updatePagination()
+													} finally {
+														setLoading(false)
+													}
+												}
+
+												form.addEventListener('submit', event => {
+													event.preventDefault()
+													fetchLogs(1)
+												})
+
+												if (prevBtn) {
+													prevBtn.addEventListener('click', () => {
+														if (currentPage > 1) {
+															fetchLogs(currentPage - 1)
+														}
+													})
+												}
+
+												if (nextBtn) {
+													nextBtn.addEventListener('click', () => {
+														if (currentPage < totalPages) {
+															fetchLogs(currentPage + 1)
+														}
+													})
+												}
+
+												fetchLogs(1)
+											})()
 
 									if hasFeature('saas')
 										.tab-pane(role='tabpanel' id='tpds')

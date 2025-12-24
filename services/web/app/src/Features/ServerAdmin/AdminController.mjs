@@ -8,7 +8,38 @@ import EditorRealTimeController from '../Editor/EditorRealTimeController.mjs'
 import SystemMessageManager from '../SystemMessages/SystemMessageManager.mjs'
 import ProjectGetter from '../Project/ProjectGetter.mjs'
 import UserGetter from '../User/UserGetter.mjs'
+import { UserAuditLogEntry } from '../../models/UserAuditLogEntry.js'
+import { ProjectAuditLogEntry } from '../../models/ProjectAuditLogEntry.js'
+import { GroupAuditLogEntry } from '../../models/GroupAuditLogEntry.js'
+import mongoose from '../../infrastructure/Mongoose.js'
 import request from 'request'
+
+const AUDIT_LOG_TYPES = {
+  user: {
+    model: UserAuditLogEntry,
+    targetField: 'userId',
+  },
+  project: {
+    model: ProjectAuditLogEntry,
+    targetField: 'projectId',
+  },
+  group: {
+    model: GroupAuditLogEntry,
+    targetField: 'groupId',
+  },
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function isObjectId(value) {
+  return /^[a-fA-F0-9]{24}$/.test(value)
+}
+
+function toObjectId(value) {
+  return new mongoose.Types.ObjectId(value)
+}
 
 // Helper function to get all active projects from real-time service
 async function getActiveProjectsFromRealTime() {
@@ -192,6 +223,20 @@ const AdminController = {
     })
   },
 
+  deleteMessage(req, res, next) {
+    const { messageId } = req.params
+    if (!messageId) {
+      return res.redirect('/admin#system-messages')
+    }
+
+    SystemMessageManager.deleteMessage(messageId, function (error) {
+      if (error) {
+        return next(error)
+      }
+      res.redirect('/admin#system-messages')
+    })
+  },
+
   clearMessages(req, res, next) {
     SystemMessageManager.clearMessages(function (error) {
       if (error) {
@@ -199,6 +244,88 @@ const AdminController = {
       }
       res.redirect('/admin#system-messages')
     })
+  },
+
+  listAuditLogs: async (req, res, next) => {
+    try {
+      const type = (req.query.type || 'user').toString()
+      const config = AUDIT_LOG_TYPES[type]
+      if (!config) {
+        return res.status(400).json({ error: 'Invalid audit log type' })
+      }
+
+      const page = Math.max(parseInt(req.query.page || '1', 10), 1)
+      const perPage = Math.min(
+        Math.max(parseInt(req.query.perPage || '50', 10), 1),
+        200
+      )
+      const targetId = (req.query.targetId || '').toString().trim()
+      const initiatorId = (req.query.initiatorId || '').toString().trim()
+      const operation = (req.query.operation || '').toString().trim()
+      const ipAddress = (req.query.ipAddress || '').toString().trim()
+
+      const query = {}
+
+      if (targetId) {
+        if (!isObjectId(targetId)) {
+          return res.status(400).json({ error: 'Invalid target ID' })
+        }
+        query[config.targetField] = toObjectId(targetId)
+      }
+
+      if (initiatorId) {
+        if (!isObjectId(initiatorId)) {
+          return res.status(400).json({ error: 'Invalid initiator ID' })
+        }
+        query.initiatorId = toObjectId(initiatorId)
+      }
+
+      if (operation) {
+        query.operation = new RegExp(escapeRegex(operation), 'i')
+      }
+
+      if (ipAddress) {
+        query.ipAddress = ipAddress
+      }
+
+      const total = await config.model.countDocuments(query).exec()
+      const totalPages = Math.max(1, Math.ceil(total / perPage))
+      const safePage = Math.min(page, totalPages)
+
+      const logs = await config.model
+        .find(query)
+        .sort({ timestamp: -1 })
+        .skip((safePage - 1) * perPage)
+        .limit(perPage)
+        .lean()
+        .exec()
+
+      const normalized = logs.map(entry => ({
+        id: entry._id.toString(),
+        type,
+        timestamp: entry.timestamp,
+        operation: entry.operation || '',
+        targetId: entry[config.targetField]
+          ? entry[config.targetField].toString()
+          : '',
+        initiatorId: entry.initiatorId ? entry.initiatorId.toString() : '',
+        ipAddress: entry.ipAddress || '',
+        managedSubscriptionId: entry.managedSubscriptionId
+          ? entry.managedSubscriptionId.toString()
+          : '',
+        info: entry.info || null,
+      }))
+
+      res.json({
+        logs: normalized,
+        total,
+        page: safePage,
+        perPage,
+        totalPages,
+      })
+    } catch (error) {
+      next(error)
+    }
   },
 }
 

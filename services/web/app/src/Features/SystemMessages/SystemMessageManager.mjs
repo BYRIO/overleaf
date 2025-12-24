@@ -25,6 +25,11 @@ const SystemMessageManager = {
     await this.refreshCache()
   },
 
+  async deleteMessage(messageId) {
+    await SystemMessage.deleteOne({ _id: messageId }).exec()
+    await this.refreshCache()
+  },
+
   async refreshCache() {
     this._cachedMessages = await this.getMessagesFromDB()
   },

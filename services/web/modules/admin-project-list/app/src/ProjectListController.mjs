@@ -2,6 +2,7 @@ import Path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Project } from '../../../../app/src/models/Project.js'
 import { User } from '../../../../app/src/models/User.js'
+import mongoose from '../../../../app/src/infrastructure/Mongoose.js'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 import ProjectZipStreamManager from '../../../../app/src/Features/Downloads/ProjectZipStreamManager.mjs'
 import ProjectDeleter from '../../../../app/src/Features/Project/ProjectDeleter.mjs'
@@ -14,6 +15,18 @@ const __dirname = Path.dirname(fileURLToPath(import.meta.url))
 const createZipStreamForProjectAsync = promisify(
   ProjectZipStreamManager.createZipStreamForProject
 ).bind(ProjectZipStreamManager)
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function isObjectId(value) {
+  return /^[a-fA-F0-9]{24}$/.test(value)
+}
+
+function toObjectId(value) {
+  return new mongoose.Types.ObjectId(value)
+}
 
 // Helper function to generate hash fragment for share links
 // This matches TokenAccessHandler.createTokenHashPrefix()
@@ -39,13 +52,104 @@ export default {
         Math.max(parseInt(req.query.perPage || '20', 10), 1),
         100
       )
-      const total = await Project.countDocuments({}).exec()
+      const search = (req.query.search || '').toString().trim()
+      const sort = (req.query.sort || 'name').toString()
+      const direction = req.query.direction === 'desc' ? -1 : 1
+      const query = {}
+
+      if (search) {
+        const regex = new RegExp(escapeRegex(search), 'i')
+        const orConditions = [{ name: regex }]
+
+        if (isObjectId(search)) {
+          orConditions.push({ _id: toObjectId(search) })
+        }
+
+        const matchingUsers = await User.find({
+          $or: [{ email: regex }, { first_name: regex }, { last_name: regex }],
+        })
+          .select({ _id: 1 })
+          .lean()
+          .exec()
+
+        if (matchingUsers.length > 0) {
+          orConditions.push({
+            owner_ref: { $in: matchingUsers.map(user => user._id) },
+          })
+        }
+
+        query.$or = orConditions
+      }
+
+      const total = await Project.countDocuments(query).exec()
+      const totalPages = Math.max(1, Math.ceil(total / perPage))
+      const safePage = Math.min(page, totalPages)
+      const skip = (safePage - 1) * perPage
+      const limit = perPage
+
+      let projectIds = null
+      if (sort === 'owner' || sort === 'email') {
+        const ownerSort = sort === 'owner'
+        const pipeline = [
+          { $match: query },
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'owner_ref',
+              foreignField: '_id',
+              as: 'owner',
+            },
+          },
+          {
+            $addFields: {
+              ownerEmail: { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, ''] },
+              ownerFirstName: {
+                $ifNull: [{ $arrayElemAt: ['$owner.first_name', 0] }, ''],
+              },
+              ownerLastName: {
+                $ifNull: [{ $arrayElemAt: ['$owner.last_name', 0] }, ''],
+              },
+            },
+          },
+          {
+            $sort: ownerSort
+              ? {
+                  ownerLastName: direction,
+                  ownerFirstName: direction,
+                  ownerEmail: 1,
+                }
+              : { ownerEmail: direction },
+          },
+          { $skip: skip },
+          { $limit: limit },
+          { $project: { _id: 1 } },
+        ]
+        const sortedIds = await Project.aggregate(pipeline).exec()
+        projectIds = sortedIds.map(item => item._id)
+      }
+
+      const sortMap = {
+        name: { name: direction },
+        lastUpdated: { lastUpdated: direction },
+        lastOpened: { lastOpened: direction },
+        active: { active: direction },
+      }
+      const sortCriteria = sortMap[sort] || sortMap.name
+
+      const projectQuery = projectIds ? { _id: { $in: projectIds } } : query
+
+      let projectQueryBuilder = Project.find(projectQuery)
+      if (!projectIds) {
+        projectQueryBuilder = projectQueryBuilder
+          .sort({ ...sortCriteria, _id: 1 })
+          .skip(skip)
+          .limit(limit)
+      } else {
+        projectQueryBuilder = projectQueryBuilder.limit(projectIds.length)
+      }
 
       // Fetch paginated projects with owner and collaborator information
-      const projects = await Project.find({})
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * perPage)
-        .limit(perPage)
+      const projects = await projectQueryBuilder
         .populate('owner_ref', 'email first_name last_name')
         .populate('collaberator_refs', 'email first_name last_name')
         .populate('readOnly_refs', 'email first_name last_name')
@@ -57,8 +161,14 @@ export default {
         .lean()
         .exec()
 
+      const orderedProjects = projectIds
+        ? projectIds
+            .map(id => projects.find(project => project._id.equals(id)))
+            .filter(Boolean)
+        : projects
+
       // Transform the data for the frontend
-      const projectList = projects.map(project => {
+      const projectList = orderedProjects.map(project => {
         const collaborators = []
         
         // Add read-write collaborators (editors)
@@ -200,9 +310,9 @@ export default {
       res.json({
         projects: projectList,
         total,
-        page,
+        page: safePage,
         perPage,
-        totalPages: Math.max(1, Math.ceil(total / perPage))
+        totalPages
       })
     } catch (error) {
       logger.error({ err: error }, 'Error fetching projects')

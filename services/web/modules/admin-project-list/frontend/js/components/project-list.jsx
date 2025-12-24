@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 
 // ... (keep all the icon components the same)
 
@@ -84,13 +84,28 @@ const ProjectList = () => {
   }
 
   useEffect(() => {
-    fetchProjects(page, perPage)
+    fetchProjects(page, perPage, searchTerm, sortConfig)
   }, [])
 
-  const fetchProjects = async (targetPage = page, targetPerPage = perPage) => {
+  const fetchProjects = async (
+    targetPage = page,
+    targetPerPage = perPage,
+    targetSearch = searchTerm,
+    targetSort = sortConfig
+  ) => {
     try {
       setLoading(true)
-      const response = await fetch(`/admin/project/list?page=${targetPage}&perPage=${targetPerPage}`)
+      setError(null)
+      const query = new URLSearchParams({
+        page: String(targetPage),
+        perPage: String(targetPerPage),
+        sort: targetSort.key,
+        direction: targetSort.direction,
+      })
+      if (targetSearch) {
+        query.set('search', targetSearch)
+      }
+      const response = await fetch(`/admin/project/list?${query.toString()}`)
       if (!response.ok) {
         throw new Error('Failed to fetch projects')
       }
@@ -120,10 +135,20 @@ const ProjectList = () => {
   }
 
   const handleSort = (key) => {
-    setSortConfig(prev => ({
+    const nextConfig = {
       key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }))
+      direction: sortConfig.key === key && sortConfig.direction === 'asc'
+        ? 'desc'
+        : 'asc'
+    }
+    setSortConfig(nextConfig)
+    fetchProjects(1, perPage, searchTerm, nextConfig)
+  }
+
+  const handleSearchChange = (event) => {
+    const nextSearch = event.target.value
+    setSearchTerm(nextSearch)
+    fetchProjects(1, perPage, nextSearch, sortConfig)
   }
 
   const handleExport = async (projectId, projectName) => {
@@ -191,7 +216,7 @@ const ProjectList = () => {
       }
       
       const data = await response.json()
-      await fetchProjects(page, perPage)
+      await fetchProjects(page, perPage, searchTerm, sortConfig)
       alert(data.message || 'Project deleted successfully')
       
     } catch (err) {
@@ -206,45 +231,15 @@ const ProjectList = () => {
     }
   }
 
-  const filteredAndSortedProjects = useMemo(() => {
-    let filtered = projects.filter(project => {
-      const search = searchTerm.toLowerCase()
-      return (
-        project.name.toLowerCase().includes(search) ||
-        project.owner.email.toLowerCase().includes(search) ||
-        `${project.owner.firstName} ${project.owner.lastName}`.toLowerCase().includes(search)
-      )
-    })
-
-    return filtered.sort((a, b) => {
-      let aVal, bVal
-      
-      if (sortConfig.key === 'name') {
-        aVal = a.name.toLowerCase()
-        bVal = b.name.toLowerCase()
-      } else if (sortConfig.key === 'owner') {
-        aVal = `${a.owner.firstName} ${a.owner.lastName}`.toLowerCase()
-        bVal = `${b.owner.firstName} ${b.owner.lastName}`.toLowerCase()
-      } else if (sortConfig.key === 'email') {
-        aVal = a.owner.email.toLowerCase()
-        bVal = b.owner.email.toLowerCase()
-      }
-      
-      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1
-      return 0
-    })
-  }, [projects, sortConfig, searchTerm])
-
   const goToPage = (nextPage) => {
     const safePage = Math.max(1, Math.min(nextPage, totalPages))
-    fetchProjects(safePage, perPage)
+    fetchProjects(safePage, perPage, searchTerm, sortConfig)
   }
 
   const handlePerPageChange = (event) => {
     const nextPerPage = parseInt(event.target.value, 10) || 20
     setPerPage(nextPerPage)
-    fetchProjects(1, nextPerPage)
+    fetchProjects(1, nextPerPage, searchTerm, sortConfig)
   }
 
   const getCollaboratorTypeBadge = (type) => {
@@ -326,9 +321,9 @@ const ProjectList = () => {
             </h1>
             <input
               type="text"
-              placeholder="Search by project name, owner name, or email..."
+              placeholder="Search by project name, ID, owner name, or email..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               style={{
                 width: '100%',
                 padding: '0.5rem 1rem',
@@ -402,7 +397,7 @@ const ProjectList = () => {
                 </tr>
               </thead>
               <tbody style={{ background: 'white' }}>
-                {filteredAndSortedProjects.map((project) => (
+                {projects.map((project) => (
                   <React.Fragment key={project.id}>
                     <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ padding: '1rem 1.5rem' }}>
@@ -652,9 +647,9 @@ const ProjectList = () => {
             </table>
           </div>
 
-          {filteredAndSortedProjects.length === 0 && (
+          {projects.length === 0 && (
             <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>
-              No projects found matching your search.
+              {searchTerm ? 'No projects found matching your search.' : 'No projects found.'}
             </div>
           )}
 

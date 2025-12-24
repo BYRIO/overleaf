@@ -21,6 +21,12 @@ export default {
       AuthorizationMiddleware.ensureUserIsSiteAdmin,
       (req, res) => res.redirect('/admin/register')
     )
+
+    webRouter.get(
+      '/admin/user/list',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      UserActivateController.listUsers
+    )
     
     webRouter.get('/user/activate', UserActivateController.activateAccountPage)
     AuthenticationController.addEndpointToLoginWhitelist('/user/activate')

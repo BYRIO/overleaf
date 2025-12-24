@@ -1170,6 +1170,11 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     AuthorizationMiddleware.ensureUserIsSiteAdmin,
     AdminController.index
   )
+  webRouter.get(
+    '/admin/audit-logs',
+    AuthorizationMiddleware.ensureUserIsSiteAdmin,
+    AdminController.listAuditLogs
+  )
 
   if (!Features.hasFeature('saas')) {
     webRouter.post(
@@ -1202,6 +1207,11 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     '/admin/messages',
     AuthorizationMiddleware.ensureUserIsSiteAdmin,
     AdminController.createMessage
+  )
+  webRouter.post(
+    '/admin/messages/:messageId/delete',
+    AuthorizationMiddleware.ensureUserIsSiteAdmin,
+    AdminController.deleteMessage
   )
   webRouter.post(
     '/admin/messages/clear',
