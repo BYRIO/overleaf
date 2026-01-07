@@ -67,7 +67,6 @@ export default {
     // Accept changes on a document - called by review panel UI
     webRouter.post(
       '/project/:Project_id/doc/:doc_id/changes/accept',
-      AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanReadProject,
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
       DocumentUpdaterController.acceptChanges

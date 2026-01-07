@@ -595,8 +595,7 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
 
   webRouter.post(
     '/project/:Project_id/texlab/complete',
-    AuthenticationController.requireLogin(),
-    AuthorizationMiddleware.ensureUserCanReadProject,
+    AuthorizationMiddleware.ensureUserCanWriteProjectContent,
     TexlabController.complete
   )
 
@@ -1066,7 +1065,6 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
 
     webRouter.post(
       '/project/:Project_id/track_changes',
-      AuthenticationController.requireLogin(),
       AuthorizationMiddleware.blockRestrictedUserFromProject,
       AuthorizationMiddleware.ensureUserCanReadProject,
       TrackChangesController.saveTrackChanges
