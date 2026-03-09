@@ -1,6 +1,5 @@
 import { useCallback, useEffect } from 'react'
 import useEventListener from '../../../shared/hooks/use-event-listener'
-import useDetachAction from '../../../shared/hooks/use-detach-action'
 
 export const startCompileKeypress = (
   event: KeyboardEvent | React.KeyboardEvent<Element>
@@ -58,15 +57,8 @@ export default function useCompileTriggers(
     }
   }, [handleKeyDown])
 
-  // record doc changes when notified by the editor
-  const setOrTriggerChangedAt = useDetachAction(
-    'set-changed-at',
-    setChangedAt,
-    'detacher',
-    'detached'
-  )
   const setChangedAtHandler = useCallback(() => {
-    setOrTriggerChangedAt(Date.now())
-  }, [setOrTriggerChangedAt])
+    setChangedAt(Date.now())
+  }, [setChangedAt])
   useEventListener('doc:changed', setChangedAtHandler)
 }

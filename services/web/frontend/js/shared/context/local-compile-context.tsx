@@ -134,6 +134,7 @@ export const LocalCompileProvider: FC<React.PropsWithChildren> = ({
   const { openDocWithId, openDocs } = useEditorManagerContext()
   const { currentDocument } = useEditorOpenDocContext()
   const { role } = useDetachContext()
+  const isCompileOwner = role !== 'detached'
 
   const { projectId, joinedOnce, project } = useProjectContext()
   const { rootDocId, imageName, compiler: compilerName } = project || {}
@@ -198,9 +199,7 @@ export const LocalCompileProvider: FC<React.PropsWithChildren> = ({
   const [compiledOnce, setCompiledOnce] = useState(false)
   // fetch initial compile response from cache
   const [initialCompileFromCache, setInitialCompileFromCache] = useState(
-    getMeta('ol-canUseClsiCache') &&
-      // Avoid fetching the initial compile from cache in PDF detach tab
-      role !== 'detached'
+    getMeta('ol-canUseClsiCache') && isCompileOwner
   )
   // fetch of initial compile from cache is pending
   const [pendingInitialCompileFromCache, setPendingInitialCompileFromCache] =
@@ -371,6 +370,7 @@ export const LocalCompileProvider: FC<React.PropsWithChildren> = ({
 
   // Maybe adopt the compile from cache
   useEffect(() => {
+    if (!isCompileOwner) return // detached tabs mirror compile state from the detacher
     if (!dataFromCache) return // no compile from cache available
     if (!joinedOnce) return // wait for joinProject, it populates the file-tree.
     if (!currentDocument) return // wait for current doc to load, it affects the rootDoc override
@@ -409,6 +409,7 @@ export const LocalCompileProvider: FC<React.PropsWithChildren> = ({
     setPendingInitialCompileFromCache(false)
   }, [
     projectId,
+    isCompileOwner,
     dataFromCache,
     joinedOnce,
     currentDocument,
@@ -425,6 +426,7 @@ export const LocalCompileProvider: FC<React.PropsWithChildren> = ({
   // always compile the PDF once after opening the project, after the doc has loaded
   useEffect(() => {
     if (
+      isCompileOwner &&
       !compiledOnce &&
       currentDocument &&
       !initialCompileFromCache &&
@@ -434,6 +436,7 @@ export const LocalCompileProvider: FC<React.PropsWithChildren> = ({
       compiler.compile({ isAutoCompileOnLoad: true })
     }
   }, [
+    isCompileOwner,
     compiledOnce,
     currentDocument,
     initialCompileFromCache,
@@ -667,6 +670,10 @@ export const LocalCompileProvider: FC<React.PropsWithChildren> = ({
 
   // call the debounced autocompile function if the project is available for auto-compiling and it has changed
   useEffect(() => {
+    if (!isCompileOwner) {
+      compiler.debouncedAutoCompile.cancel()
+      return
+    }
     if (canAutoCompile) {
       if (changedAt > 0) {
         compiler.debouncedAutoCompile()
@@ -674,7 +681,7 @@ export const LocalCompileProvider: FC<React.PropsWithChildren> = ({
     } else {
       compiler.debouncedAutoCompile.cancel()
     }
-  }, [compiler, canAutoCompile, changedAt])
+  }, [compiler, canAutoCompile, changedAt, isCompileOwner])
 
   // cancel debounced recompile on unmount
   useEffect(() => {
